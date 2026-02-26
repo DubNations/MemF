@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from datetime import datetime, timedelta
+from datetime import datetime
 
 from cognitive_os.conflict.conflict_manager import ConflictManager
 from cognitive_os.core.context import CognitiveFrame, GoalContext
@@ -27,13 +27,20 @@ class CognitiveFrameLoader:
 
 class ConfidenceUpdater:
     @staticmethod
-    def update(knowledge_graph: KnowledgeGraph, decay_factor: float = 0.995) -> None:
-        pseudo_last_update = datetime.utcnow() - timedelta(days=1)
+    def update(knowledge_graph: KnowledgeGraph, memory_plane: MemoryPlane, decay_factor: float = 0.995) -> None:
+        timestamps = {
+            item["id"]: item["updated_at"] for item in memory_plane.load_knowledge_units_with_timestamps()
+        }
         for unit in knowledge_graph.knowledge_units.values():
+            last_update_raw = timestamps.get(unit.id)
+            if last_update_raw:
+                last_update = memory_plane.parse_datetime(last_update_raw)
+            else:
+                last_update = datetime.utcnow()
             unit.confidence = update_confidence(
                 confidence_old=unit.confidence,
                 decay_factor=decay_factor,
-                last_update=pseudo_last_update,
+                last_update=last_update,
                 reinforcement=0.02,
             )
 
@@ -56,8 +63,6 @@ class CognitiveLoop:
                 knowledge_graph.update(new_info)
 
         judgement = RuleEngine.infer(knowledge_graph, context, frame.rules)
+        ConfidenceUpdater.update(knowledge_graph, self.memory_plane)
         self.memory_plane.write_back(knowledge_graph, judgement)
-        ConfidenceUpdater.update(knowledge_graph)
-        self.memory_plane.write_back(knowledge_graph, judgement)
-
         return judgement

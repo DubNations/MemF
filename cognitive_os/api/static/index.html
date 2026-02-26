@@ -1,0 +1,101 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Cognitive OS Console</title>
+  <style>
+    body { font-family: Arial, sans-serif; margin: 0; background: #f5f7fb; color: #1f2937; }
+    header { background: #111827; color: #fff; padding: 16px 24px; }
+    main { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; padding: 16px; }
+    .card { background: #fff; border-radius: 10px; padding: 16px; box-shadow: 0 2px 8px rgba(0,0,0,.08); }
+    h2 { margin-top: 0; font-size: 18px; }
+    textarea, input { width: 100%; box-sizing: border-box; margin: 6px 0 10px; padding: 8px; }
+    button { padding: 8px 12px; border: 0; border-radius: 6px; background: #2563eb; color: #fff; cursor: pointer; }
+    pre { background: #0b1020; color: #d1e4ff; padding: 10px; border-radius: 8px; overflow: auto; max-height: 240px; }
+    .full { grid-column: 1 / span 2; }
+  </style>
+</head>
+<body>
+  <header><strong>Cognitive OS 管理控制台</strong>（规则/知识管理 + 认知执行 + 场景结果）</header>
+  <main>
+    <section class="card">
+      <h2>新增 Rule</h2>
+      <textarea id="ruleInput" rows="8">{"id":"risk_rule_1","scope":"finance","condition":"knowledge_count >= 2","action_constraint":"manual_review","priority":8,"applicable_boundary":"global"}</textarea>
+      <button onclick="createRule()">保存 Rule</button>
+      <pre id="ruleResult"></pre>
+    </section>
+
+    <section class="card">
+      <h2>新增 KnowledgeUnit</h2>
+      <textarea id="kuInput" rows="8">{"id":"loan_case_1","knowledge_type":"case","content":"借款人信用分 610","source":"public","confidence":0.35,"valid_boundary":"global","invalid_boundary":"","conflict_ids":[]}</textarea>
+      <button onclick="createKu()">保存 Knowledge</button>
+      <pre id="kuResult"></pre>
+    </section>
+
+    <section class="card">
+      <h2>执行 Cognition Loop</h2>
+      <textarea id="goalInput" rows="5">{"goal":"贷款预审：是否进入人工复核","boundary":"global","metadata":{"product":"loan_assistant"}}</textarea>
+      <button onclick="runCognition()">运行</button>
+      <pre id="runResult"></pre>
+    </section>
+
+    <section class="card">
+      <h2>金融场景结果（示例）</h2>
+      <button onclick="loadScenario()">刷新场景结果</button>
+      <pre id="scenarioResult"></pre>
+    </section>
+
+    <section class="card full">
+      <h2>当前系统状态</h2>
+      <button onclick="refreshState()">刷新规则/知识/Judgement</button>
+      <pre id="stateResult"></pre>
+    </section>
+  </main>
+
+  <script>
+    async function postJson(url, payload) {
+      const res = await fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload)});
+      return await res.json();
+    }
+    async function getJson(url) { const res = await fetch(url); return await res.json(); }
+
+    async function createRule() {
+      const payload = JSON.parse(document.getElementById('ruleInput').value);
+      const data = await postJson('/api/rules', payload);
+      document.getElementById('ruleResult').textContent = JSON.stringify(data, null, 2);
+    }
+
+    async function createKu() {
+      const payload = JSON.parse(document.getElementById('kuInput').value);
+      const data = await postJson('/api/knowledge', payload);
+      document.getElementById('kuResult').textContent = JSON.stringify(data, null, 2);
+    }
+
+    async function runCognition() {
+      const payload = JSON.parse(document.getElementById('goalInput').value);
+      const data = await postJson('/cognition/run', payload);
+      document.getElementById('runResult').textContent = JSON.stringify(data, null, 2);
+      refreshState();
+      loadScenario();
+    }
+
+    async function refreshState() {
+      const [rules, knowledge, judgements] = await Promise.all([
+        getJson('/api/rules'),
+        getJson('/api/knowledge'),
+        getJson('/api/judgements?limit=10')
+      ]);
+      document.getElementById('stateResult').textContent = JSON.stringify({rules, knowledge, judgements}, null, 2);
+    }
+
+    async function loadScenario() {
+      const data = await getJson('/api/scenario/finance');
+      document.getElementById('scenarioResult').textContent = JSON.stringify(data, null, 2);
+    }
+
+    refreshState();
+    loadScenario();
+  </script>
+</body>
+</html>
