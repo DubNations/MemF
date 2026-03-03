@@ -28,7 +28,7 @@
 
     <section class="card">
       <h2>新增 KnowledgeUnit</h2>
-      <textarea id="kuInput" rows="8">{"id":"loan_case_1","knowledge_type":"case","content":"借款人信用分 610","source":"public","confidence":0.35,"valid_boundary":"global","invalid_boundary":"","conflict_ids":[]}</textarea>
+      <textarea id="kuInput" rows="8">{"id":"loan_case_1","knowledge_type":"case","content":{"text":"借款人信用分 610","original_url":"https://pkm.example/loan/1","note_id":"note-2024-01","import_channel":"obsidian"},"source":"public","confidence":0.35,"valid_boundary":"global","invalid_boundary":"","conflict_ids":[]}</textarea>
       <button onclick="createKu()">保存 Knowledge</button>
       <pre id="kuResult"></pre>
     </section>
