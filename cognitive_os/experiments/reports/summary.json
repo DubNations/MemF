@@ -1,0 +1,174 @@
+{
+  "total_scenarios": 9,
+  "scenario_results": [
+    {
+      "scenario": "career_interview_prep",
+      "sample_size": 1000,
+      "ingested": 1000,
+      "deduplicated": 0,
+      "latency_ms": 249,
+      "decision_count": 2,
+      "decisions": [
+        "prioritize_structured_review",
+        "weekly_digest_generation"
+      ],
+      "diagnostics_count": 1
+    },
+    {
+      "scenario": "career_networking",
+      "sample_size": 1050,
+      "ingested": 1050,
+      "deduplicated": 0,
+      "latency_ms": 447,
+      "decision_count": 2,
+      "decisions": [
+        "prioritize_structured_review",
+        "weekly_digest_generation"
+      ],
+      "diagnostics_count": 1
+    },
+    {
+      "scenario": "career_project_planning",
+      "sample_size": 1150,
+      "ingested": 1150,
+      "deduplicated": 0,
+      "latency_ms": 664,
+      "decision_count": 2,
+      "decisions": [
+        "prioritize_structured_review",
+        "weekly_digest_generation"
+      ],
+      "diagnostics_count": 1
+    },
+    {
+      "scenario": "learning_exam_prep",
+      "sample_size": 1200,
+      "ingested": 1200,
+      "deduplicated": 0,
+      "latency_ms": 892,
+      "decision_count": 2,
+      "decisions": [
+        "prioritize_structured_review",
+        "weekly_digest_generation"
+      ],
+      "diagnostics_count": 1
+    },
+    {
+      "scenario": "learning_language_retention",
+      "sample_size": 1300,
+      "ingested": 1300,
+      "deduplicated": 0,
+      "latency_ms": 1119,
+      "decision_count": 2,
+      "decisions": [
+        "prioritize_structured_review",
+        "weekly_digest_generation"
+      ],
+      "diagnostics_count": 1
+    },
+    {
+      "scenario": "learning_skill_transition",
+      "sample_size": 1100,
+      "ingested": 1100,
+      "deduplicated": 0,
+      "latency_ms": 1301,
+      "decision_count": 2,
+      "decisions": [
+        "prioritize_structured_review",
+        "weekly_digest_generation"
+      ],
+      "diagnostics_count": 1
+    },
+    {
+      "scenario": "wellbeing_focus_management",
+      "sample_size": 1400,
+      "ingested": 1400,
+      "deduplicated": 0,
+      "latency_ms": 1524,
+      "decision_count": 2,
+      "decisions": [
+        "prioritize_structured_review",
+        "weekly_digest_generation"
+      ],
+      "diagnostics_count": 1
+    },
+    {
+      "scenario": "wellbeing_nutrition_tracking",
+      "sample_size": 1250,
+      "ingested": 1250,
+      "deduplicated": 0,
+      "latency_ms": 1721,
+      "decision_count": 2,
+      "decisions": [
+        "prioritize_structured_review",
+        "weekly_digest_generation"
+      ],
+      "diagnostics_count": 1
+    },
+    {
+      "scenario": "wellbeing_sleep_optimization",
+      "sample_size": 1200,
+      "ingested": 1200,
+      "deduplicated": 0,
+      "latency_ms": 1954,
+      "decision_count": 2,
+      "decisions": [
+        "prioritize_structured_review",
+        "weekly_digest_generation"
+      ],
+      "diagnostics_count": 1
+    }
+  ],
+  "rounds": {
+    "round_1_validation": {
+      "focus": "有效性验证",
+      "useful": [
+        "career_interview_prep",
+        "career_networking",
+        "career_project_planning",
+        "learning_exam_prep",
+        "learning_language_retention",
+        "learning_skill_transition"
+      ],
+      "improvable": [
+        "wellbeing_focus_management",
+        "wellbeing_nutrition_tracking",
+        "wellbeing_sleep_optimization"
+      ],
+      "unusable": []
+    },
+    "round_2_optimization": {
+      "focus": "可提升项优化",
+      "useful": [],
+      "improvable": [
+        "career_interview_prep",
+        "career_networking",
+        "career_project_planning",
+        "learning_exam_prep",
+        "learning_language_retention",
+        "learning_skill_transition",
+        "wellbeing_focus_management",
+        "wellbeing_nutrition_tracking",
+        "wellbeing_sleep_optimization"
+      ],
+      "unusable": []
+    },
+    "round_3_generalization": {
+      "focus": "不可用点泛化重构",
+      "useful": [
+        "career_interview_prep",
+        "career_networking",
+        "career_project_planning",
+        "learning_exam_prep",
+        "learning_language_retention",
+        "learning_skill_transition"
+      ],
+      "improvable": [
+        "wellbeing_focus_management",
+        "wellbeing_nutrition_tracking",
+        "wellbeing_sleep_optimization"
+      ],
+      "unusable": []
+    }
+  }
+}
