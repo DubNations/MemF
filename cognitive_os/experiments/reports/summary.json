@@ -2,17 +2,26 @@
   "total_scenarios": 9,
   "scenario_results": [
     {
+<<<<<<< codex/review-cognitive-os-kernel-implementation-specs-cuyls0
       "scenario": "career_project_retrospective",
       "persona": "项目复盘教练",
       "sample_size": 1400,
       "ingested": 1400,
       "deduplicated": 0,
       "latency_ms": 836,
+=======
+      "scenario": "career_interview_prep",
+      "sample_size": 1000,
+      "ingested": 1000,
+      "deduplicated": 0,
+      "latency_ms": 249,
+>>>>>>> main
       "decision_count": 2,
       "decisions": [
         "prioritize_structured_review",
         "weekly_digest_generation"
       ],
+<<<<<<< codex/review-cognitive-os-kernel-implementation-specs-cuyls0
       "diagnostics_count": 0,
       "lookup_efficiency_gain_pct": 68.5
     },
@@ -23,11 +32,22 @@
       "ingested": 1500,
       "deduplicated": 0,
       "latency_ms": 1553,
+=======
+      "diagnostics_count": 1
+    },
+    {
+      "scenario": "career_networking",
+      "sample_size": 1050,
+      "ingested": 1050,
+      "deduplicated": 0,
+      "latency_ms": 447,
+>>>>>>> main
       "decision_count": 2,
       "decisions": [
         "prioritize_structured_review",
         "weekly_digest_generation"
       ],
+<<<<<<< codex/review-cognitive-os-kernel-implementation-specs-cuyls0
       "diagnostics_count": 0,
       "lookup_efficiency_gain_pct": 65.5
     },
@@ -38,11 +58,22 @@
       "ingested": 1650,
       "deduplicated": 0,
       "latency_ms": 2148,
+=======
+      "diagnostics_count": 1
+    },
+    {
+      "scenario": "career_project_planning",
+      "sample_size": 1150,
+      "ingested": 1150,
+      "deduplicated": 0,
+      "latency_ms": 664,
+>>>>>>> main
       "decision_count": 2,
       "decisions": [
         "prioritize_structured_review",
         "weekly_digest_generation"
       ],
+<<<<<<< codex/review-cognitive-os-kernel-implementation-specs-cuyls0
       "diagnostics_count": 0,
       "lookup_efficiency_gain_pct": 63.1
     },
@@ -53,11 +84,22 @@
       "ingested": 1450,
       "deduplicated": 0,
       "latency_ms": 2656,
+=======
+      "diagnostics_count": 1
+    },
+    {
+      "scenario": "learning_exam_prep",
+      "sample_size": 1200,
+      "ingested": 1200,
+      "deduplicated": 0,
+      "latency_ms": 892,
+>>>>>>> main
       "decision_count": 2,
       "decisions": [
         "prioritize_structured_review",
         "weekly_digest_generation"
       ],
+<<<<<<< codex/review-cognitive-os-kernel-implementation-specs-cuyls0
       "diagnostics_count": 0,
       "lookup_efficiency_gain_pct": 60.9
     },
@@ -68,11 +110,22 @@
       "ingested": 1550,
       "deduplicated": 0,
       "latency_ms": 3287,
+=======
+      "diagnostics_count": 1
+    },
+    {
+      "scenario": "learning_language_retention",
+      "sample_size": 1300,
+      "ingested": 1300,
+      "deduplicated": 0,
+      "latency_ms": 1119,
+>>>>>>> main
       "decision_count": 2,
       "decisions": [
         "prioritize_structured_review",
         "weekly_digest_generation"
       ],
+<<<<<<< codex/review-cognitive-os-kernel-implementation-specs-cuyls0
       "diagnostics_count": 0,
       "lookup_efficiency_gain_pct": 58.3
     },
@@ -83,11 +136,22 @@
       "ingested": 1700,
       "deduplicated": 0,
       "latency_ms": 3822,
+=======
+      "diagnostics_count": 1
+    },
+    {
+      "scenario": "learning_skill_transition",
+      "sample_size": 1100,
+      "ingested": 1100,
+      "deduplicated": 0,
+      "latency_ms": 1301,
+>>>>>>> main
       "decision_count": 2,
       "decisions": [
         "prioritize_structured_review",
         "weekly_digest_generation"
       ],
+<<<<<<< codex/review-cognitive-os-kernel-implementation-specs-cuyls0
       "diagnostics_count": 0,
       "lookup_efficiency_gain_pct": 56.1
     },
@@ -98,11 +162,22 @@
       "ingested": 1600,
       "deduplicated": 0,
       "latency_ms": 4402,
+=======
+      "diagnostics_count": 1
+    },
+    {
+      "scenario": "wellbeing_focus_management",
+      "sample_size": 1400,
+      "ingested": 1400,
+      "deduplicated": 0,
+      "latency_ms": 1524,
+>>>>>>> main
       "decision_count": 2,
       "decisions": [
         "prioritize_structured_review",
         "weekly_digest_generation"
       ],
+<<<<<<< codex/review-cognitive-os-kernel-implementation-specs-cuyls0
       "diagnostics_count": 0,
       "lookup_efficiency_gain_pct": 53.7
     },
@@ -113,11 +188,22 @@
       "ingested": 1500,
       "deduplicated": 0,
       "latency_ms": 4902,
+=======
+      "diagnostics_count": 1
+    },
+    {
+      "scenario": "wellbeing_nutrition_tracking",
+      "sample_size": 1250,
+      "ingested": 1250,
+      "deduplicated": 0,
+      "latency_ms": 1721,
+>>>>>>> main
       "decision_count": 2,
       "decisions": [
         "prioritize_structured_review",
         "weekly_digest_generation"
       ],
+<<<<<<< codex/review-cognitive-os-kernel-implementation-specs-cuyls0
       "diagnostics_count": 0,
       "lookup_efficiency_gain_pct": 51.6
     },
@@ -136,10 +222,27 @@
       ],
       "diagnostics_count": 0,
       "lookup_efficiency_gain_pct": 55.4
+=======
+      "diagnostics_count": 1
+    },
+    {
+      "scenario": "wellbeing_sleep_optimization",
+      "sample_size": 1200,
+      "ingested": 1200,
+      "deduplicated": 0,
+      "latency_ms": 1954,
+      "decision_count": 2,
+      "decisions": [
+        "prioritize_structured_review",
+        "weekly_digest_generation"
+      ],
+      "diagnostics_count": 1
+>>>>>>> main
     }
   ],
   "rounds": {
     "round_1_validation": {
+<<<<<<< codex/review-cognitive-os-kernel-implementation-specs-cuyls0
       "focus": "复盘执行偏差与可用性验证",
       "problem": "缺少真实入口与大样本验证",
       "actions": [
@@ -179,10 +282,42 @@
         "health_chronic_care_manager",
         "health_nutrition_planner",
         "marketing_customer_service_assistant"
+=======
+      "focus": "有效性验证",
+      "useful": [
+        "career_interview_prep",
+        "career_networking",
+        "career_project_planning",
+        "learning_exam_prep",
+        "learning_language_retention",
+        "learning_skill_transition"
+      ],
+      "improvable": [
+        "wellbeing_focus_management",
+        "wellbeing_nutrition_tracking",
+        "wellbeing_sleep_optimization"
+      ],
+      "unusable": []
+    },
+    "round_2_optimization": {
+      "focus": "可提升项优化",
+      "useful": [],
+      "improvable": [
+        "career_interview_prep",
+        "career_networking",
+        "career_project_planning",
+        "learning_exam_prep",
+        "learning_language_retention",
+        "learning_skill_transition",
+        "wellbeing_focus_management",
+        "wellbeing_nutrition_tracking",
+        "wellbeing_sleep_optimization"
+>>>>>>> main
       ],
       "unusable": []
     },
     "round_3_generalization": {
+<<<<<<< codex/review-cognitive-os-kernel-implementation-specs-cuyls0
       "focus": "9场景泛化与可复现",
       "problem": "跨身份泛化能力与稳定复现要求",
       "actions": [
@@ -204,6 +339,23 @@
         "health_nutrition_planner",
         "marketing_customer_service_assistant"
       ]
+=======
+      "focus": "不可用点泛化重构",
+      "useful": [
+        "career_interview_prep",
+        "career_networking",
+        "career_project_planning",
+        "learning_exam_prep",
+        "learning_language_retention",
+        "learning_skill_transition"
+      ],
+      "improvable": [
+        "wellbeing_focus_management",
+        "wellbeing_nutrition_tracking",
+        "wellbeing_sleep_optimization"
+      ],
+      "unusable": []
+>>>>>>> main
     }
   }
 }
