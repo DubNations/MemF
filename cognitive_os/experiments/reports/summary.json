@@ -1,0 +1,209 @@
+{
+  "total_scenarios": 9,
+  "scenario_results": [
+    {
+      "scenario": "career_project_retrospective",
+      "persona": "项目复盘教练",
+      "sample_size": 1400,
+      "ingested": 1400,
+      "deduplicated": 0,
+      "latency_ms": 836,
+      "decision_count": 2,
+      "decisions": [
+        "prioritize_structured_review",
+        "weekly_digest_generation"
+      ],
+      "diagnostics_count": 0,
+      "lookup_efficiency_gain_pct": 68.5
+    },
+    {
+      "scenario": "career_transition_advisor",
+      "persona": "职业转型顾问",
+      "sample_size": 1500,
+      "ingested": 1500,
+      "deduplicated": 0,
+      "latency_ms": 1553,
+      "decision_count": 2,
+      "decisions": [
+        "prioritize_structured_review",
+        "weekly_digest_generation"
+      ],
+      "diagnostics_count": 0,
+      "lookup_efficiency_gain_pct": 65.5
+    },
+    {
+      "scenario": "education_exam_coach",
+      "persona": "考试备考教练",
+      "sample_size": 1650,
+      "ingested": 1650,
+      "deduplicated": 0,
+      "latency_ms": 2148,
+      "decision_count": 2,
+      "decisions": [
+        "prioritize_structured_review",
+        "weekly_digest_generation"
+      ],
+      "diagnostics_count": 0,
+      "lookup_efficiency_gain_pct": 63.1
+    },
+    {
+      "scenario": "efficiency_focus_coach",
+      "persona": "专注力教练",
+      "sample_size": 1450,
+      "ingested": 1450,
+      "deduplicated": 0,
+      "latency_ms": 2656,
+      "decision_count": 2,
+      "decisions": [
+        "prioritize_structured_review",
+        "weekly_digest_generation"
+      ],
+      "diagnostics_count": 0,
+      "lookup_efficiency_gain_pct": 60.9
+    },
+    {
+      "scenario": "finance_insurance_consultant",
+      "persona": "保险咨询师",
+      "sample_size": 1550,
+      "ingested": 1550,
+      "deduplicated": 0,
+      "latency_ms": 3287,
+      "decision_count": 2,
+      "decisions": [
+        "prioritize_structured_review",
+        "weekly_digest_generation"
+      ],
+      "diagnostics_count": 0,
+      "lookup_efficiency_gain_pct": 58.3
+    },
+    {
+      "scenario": "finance_wealth_advisor",
+      "persona": "个人理财顾问",
+      "sample_size": 1700,
+      "ingested": 1700,
+      "deduplicated": 0,
+      "latency_ms": 3822,
+      "decision_count": 2,
+      "decisions": [
+        "prioritize_structured_review",
+        "weekly_digest_generation"
+      ],
+      "diagnostics_count": 0,
+      "lookup_efficiency_gain_pct": 56.1
+    },
+    {
+      "scenario": "health_chronic_care_manager",
+      "persona": "慢病患者管理师",
+      "sample_size": 1600,
+      "ingested": 1600,
+      "deduplicated": 0,
+      "latency_ms": 4402,
+      "decision_count": 2,
+      "decisions": [
+        "prioritize_structured_review",
+        "weekly_digest_generation"
+      ],
+      "diagnostics_count": 0,
+      "lookup_efficiency_gain_pct": 53.7
+    },
+    {
+      "scenario": "health_nutrition_planner",
+      "persona": "家庭营养管理师",
+      "sample_size": 1500,
+      "ingested": 1500,
+      "deduplicated": 0,
+      "latency_ms": 4902,
+      "decision_count": 2,
+      "decisions": [
+        "prioritize_structured_review",
+        "weekly_digest_generation"
+      ],
+      "diagnostics_count": 0,
+      "lookup_efficiency_gain_pct": 51.6
+    },
+    {
+      "scenario": "marketing_customer_service_assistant",
+      "persona": "营销客服助手",
+      "sample_size": 1800,
+      "ingested": 1800,
+      "deduplicated": 0,
+      "latency_ms": 5965,
+      "decision_count": 3,
+      "decisions": [
+        "prioritize_structured_review",
+        "strict_policy_response_mode",
+        "weekly_digest_generation"
+      ],
+      "diagnostics_count": 0,
+      "lookup_efficiency_gain_pct": 55.4
+    }
+  ],
+  "rounds": {
+    "round_1_validation": {
+      "focus": "复盘执行偏差与可用性验证",
+      "problem": "缺少真实入口与大样本验证",
+      "actions": [
+        "DOC/PDF 入库能力",
+        "大样本场景验证"
+      ],
+      "useful": [
+        "career_project_retrospective",
+        "career_transition_advisor",
+        "education_exam_coach",
+        "efficiency_focus_coach",
+        "finance_insurance_consultant",
+        "finance_wealth_advisor",
+        "health_chronic_care_manager",
+        "health_nutrition_planner",
+        "marketing_customer_service_assistant"
+      ],
+      "improvable": [],
+      "unusable": []
+    },
+    "round_2_optimization": {
+      "focus": "营销客服助手效率优化",
+      "problem": "制度检索慢、回复一致性不足",
+      "actions": [
+        "制度文档结构化",
+        "strict_policy_response_mode"
+      ],
+      "useful": [
+        "career_project_retrospective",
+        "career_transition_advisor",
+        "education_exam_coach",
+        "efficiency_focus_coach"
+      ],
+      "improvable": [
+        "finance_insurance_consultant",
+        "finance_wealth_advisor",
+        "health_chronic_care_manager",
+        "health_nutrition_planner",
+        "marketing_customer_service_assistant"
+      ],
+      "unusable": []
+    },
+    "round_3_generalization": {
+      "focus": "9场景泛化与可复现",
+      "problem": "跨身份泛化能力与稳定复现要求",
+      "actions": [
+        "统一实验模板",
+        "标准化报告输出"
+      ],
+      "useful": [
+        "career_project_retrospective"
+      ],
+      "improvable": [
+        "career_transition_advisor",
+        "education_exam_coach"
+      ],
+      "unusable": [
+        "efficiency_focus_coach",
+        "finance_insurance_consultant",
+        "finance_wealth_advisor",
+        "health_chronic_care_manager",
+        "health_nutrition_planner",
+        "marketing_customer_service_assistant"
+      ]
+    }
+  }
+}
