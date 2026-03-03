@@ -1,36 +1,20 @@
 from __future__ import annotations
 
 import json
+import os
+import uuid
 from dataclasses import asdict
 from http.server import BaseHTTPRequestHandler, HTTPServer
 from pathlib import Path
 from urllib.parse import parse_qs, urlparse
-from typing import Any, Dict, List
 
 from cognitive_os.core.cognition_loop import CognitiveLoop
+from cognitive_os.experiments.generate_datasets import generate as generate_datasets
+from cognitive_os.experiments.run_iterations import run as run_iterations
 from cognitive_os.memory.repository import MemoryPlane
 from cognitive_os.ontology.ontology_entity import KnowledgeUnit
 from cognitive_os.rules.rule import Rule
 from cognitive_os.skills.registry import SkillManager
-
-
-
-
-def _validate_knowledge_payload(payload: Dict[str, Any]) -> Dict[str, Any]:
-    required = ["id", "knowledge_type", "content", "source"]
-    missing = [k for k in required if k not in payload]
-    if missing:
-        return {"ok": False, "error": f"missing_fields:{','.join(missing)}"}
-
-    try:
-        confidence = float(payload.get("confidence", 0.0))
-    except (TypeError, ValueError):
-        return {"ok": False, "error": "invalid_confidence"}
-
-    if not 0.0 <= confidence <= 1.0:
-        return {"ok": False, "error": "confidence_out_of_range"}
-
-    return {"ok": True}
 
 
 class _Handler(BaseHTTPRequestHandler):
@@ -45,11 +29,44 @@ class _Handler(BaseHTTPRequestHandler):
         self.end_headers()
         self.wfile.write(data)
 
+    def _error(self, status: int, code: str, message: str, details: str = "") -> None:
+        self._send_json(
+            status,
+            {
+                "code": code,
+                "message": message,
+                "details": details,
+                "request_id": str(uuid.uuid4()),
+            },
+        )
+
     def _read_json(self) -> dict:
         size = int(self.headers.get("Content-Length", "0"))
         if size == 0:
             return {}
         return json.loads(self.rfile.read(size).decode("utf-8"))
+
+    def _require_auth(self) -> bool:
+        expected = os.getenv("COGNITIVE_OS_API_TOKEN", "")
+        if not expected:
+            return True
+        return self.headers.get("X-API-Key", "") == expected
+
+    @staticmethod
+    def _validate_rule(payload: dict) -> str:
+        required = ["id", "scope", "condition", "action_constraint", "priority", "applicable_boundary"]
+        for key in required:
+            if key not in payload:
+                return f"missing_field:{key}"
+        return ""
+
+    @staticmethod
+    def _validate_ku(payload: dict) -> str:
+        required = ["id", "knowledge_type", "content", "source", "confidence", "valid_boundary"]
+        for key in required:
+            if key not in payload:
+                return f"missing_field:{key}"
+        return ""
 
     def do_GET(self) -> None:  # noqa: N802
         parsed = urlparse(self.path)
@@ -64,6 +81,10 @@ class _Handler(BaseHTTPRequestHandler):
             self.wfile.write(data)
             return
 
+        if parsed.path.startswith("/api/") and not self._require_auth():
+            self._error(401, "UNAUTHORIZED", "Missing or invalid API token")
+            return
+
         if parsed.path == "/api/rules":
             self._send_json(200, {"items": [asdict(x) for x in self.memory.load_rules()]})
             return
@@ -76,6 +97,20 @@ class _Handler(BaseHTTPRequestHandler):
             qs = parse_qs(parsed.query)
             limit = int(qs.get("limit", ["20"])[0])
             self._send_json(200, {"items": self.memory.load_judgements(limit=limit)})
+            return
+
+        if parsed.path == "/api/loop_runs":
+            qs = parse_qs(parsed.query)
+            limit = int(qs.get("limit", ["20"])[0])
+            self._send_json(200, {"items": self.memory.load_loop_runs(limit=limit)})
+            return
+
+        if parsed.path == "/api/reports/summary":
+            report_path = Path("cognitive_os/experiments/reports/summary.json")
+            if not report_path.exists():
+                self._error(404, "NOT_FOUND", "summary report not found", "run experiments first")
+                return
+            self._send_json(200, json.loads(report_path.read_text(encoding="utf-8")))
             return
 
         if parsed.path == "/api/scenario/finance":
@@ -93,8 +128,17 @@ class _Handler(BaseHTTPRequestHandler):
         self.send_error(404)
 
     def do_POST(self) -> None:  # noqa: N802
+        protected = self.path.startswith("/api/") or self.path == "/cognition/run"
+        if protected and not self._require_auth():
+            self._error(401, "UNAUTHORIZED", "Missing or invalid API token")
+            return
+
         if self.path == "/api/rules":
             payload = self._read_json()
+            err = self._validate_rule(payload)
+            if err:
+                self._error(400, "INVALID_RULE", "Rule schema validation failed", err)
+                return
             rule = Rule.from_dict(payload)
             self.memory.save_rules([rule])
             self._send_json(201, {"status": "ok", "id": rule.id})
@@ -102,59 +146,48 @@ class _Handler(BaseHTTPRequestHandler):
 
         if self.path == "/api/knowledge":
             payload = self._read_json()
-            validation = _validate_knowledge_payload(payload)
-            if not validation["ok"]:
-                self._send_json(400, {"status": "error", "error": validation["error"]})
+            err = self._validate_ku(payload)
+            if err:
+                self._error(400, "INVALID_KNOWLEDGE", "Knowledge schema validation failed", err)
                 return
-
             ku = KnowledgeUnit.from_dict(payload)
-            result = self.memory.save_knowledge_units_bulk([ku])
-            if result["failed"]:
-                self._send_json(409, {"status": "duplicate", "id": ku.id, "result": result})
-                return
+            self.memory.save_knowledge_units([ku])
             self._send_json(201, {"status": "ok", "id": ku.id})
             return
 
         if self.path == "/api/knowledge/batch":
             payload = self._read_json()
-            if not isinstance(payload, list):
-                self._send_json(400, {"status": "error", "error": "payload_must_be_array"})
-                return
+            items = payload.get("items", [])
+            valid = []
+            errors = []
+            for item in items:
+                err = self._validate_ku(item)
+                if err:
+                    errors.append({"id": item.get("id", ""), "error": err})
+                else:
+                    valid.append(item)
+            result = self.memory.save_knowledge_units_bulk(valid)
+            self._send_json(201, {"status": "ok", "result": result, "errors": errors})
+            return
 
-            valid_units: List[KnowledgeUnit] = []
-            per_item: List[Dict[str, Any]] = []
-            for item in payload:
-                if not isinstance(item, dict):
-                    per_item.append({"id": None, "ok": False, "error": "item_must_be_object"})
-                    continue
-
-                validation = _validate_knowledge_payload(item)
-                if not validation["ok"]:
-                    per_item.append({"id": item.get("id"), "ok": False, "error": validation["error"]})
-                    continue
-
-                valid_units.append(KnowledgeUnit.from_dict(item))
-                per_item.append({"id": item.get("id"), "ok": True})
-
-            persistence_result = self.memory.save_knowledge_units_bulk(valid_units)
-            failed_by_id = {entry["id"]: entry["reason"] for entry in persistence_result["failed"]}
-            for item in per_item:
-                if item.get("id") in failed_by_id:
-                    item["ok"] = False
-                    item["error"] = failed_by_id[item["id"]]
-
-            self._send_json(201, {
-                "status": "ok",
-                "inserted_ids": persistence_result["inserted_ids"],
-                "failed": persistence_result["failed"],
-                "results": per_item,
-            })
+        if self.path == "/api/experiments/run":
+            data_dir = Path("cognitive_os/experiments/data")
+            generate_datasets(data_dir)
+            summary = run_iterations()
+            self._send_json(200, {"status": "ok", "summary": summary})
             return
 
         if self.path == "/cognition/run":
             payload = self._read_json()
             judgement = self.loop.run(payload)
-            self._send_json(200, {"goal": judgement.goal, "decisions": judgement.decisions})
+            self._send_json(
+                200,
+                {
+                    "goal": judgement.goal,
+                    "decisions": judgement.decisions,
+                    "diagnostics": judgement.diagnostics,
+                },
+            )
             return
 
         self.send_error(404)

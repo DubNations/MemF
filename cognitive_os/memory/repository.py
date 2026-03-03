@@ -2,7 +2,6 @@ from __future__ import annotations
 
 import json
 import sqlite3
-from hashlib import sha256
 from dataclasses import asdict, dataclass
 from datetime import datetime
 from pathlib import Path
@@ -37,6 +36,7 @@ class MemoryPlane:
                 CREATE TABLE IF NOT EXISTS knowledge_units (
                     id TEXT PRIMARY KEY,
                     payload TEXT NOT NULL,
+                    payload_hash TEXT,
                     updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
                 );
                 CREATE TABLE IF NOT EXISTS ontology_entities (
@@ -48,6 +48,14 @@ class MemoryPlane:
                     id INTEGER PRIMARY KEY AUTOINCREMENT,
                     goal TEXT NOT NULL,
                     payload TEXT NOT NULL,
+                    diagnostics TEXT NOT NULL,
+                    created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+                );
+                CREATE TABLE IF NOT EXISTS loop_runs (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    goal TEXT NOT NULL,
+                    boundary TEXT NOT NULL,
+                    skill_report TEXT NOT NULL,
                     created_at DATETIME DEFAULT CURRENT_TIMESTAMP
                 );
                 """
@@ -66,83 +74,40 @@ class MemoryPlane:
             rows = conn.execute("SELECT payload FROM rules ORDER BY id").fetchall()
         return [Rule.from_dict(json.loads(row[0])) for row in rows]
 
+    @staticmethod
+    def _payload_hash(payload: Dict[str, Any]) -> str:
+        return str(abs(hash(json.dumps(payload, ensure_ascii=False, sort_keys=True))))
+
     def save_knowledge_units(self, units: List[KnowledgeUnit]) -> None:
-        self.save_knowledge_units_bulk(units)
+        self.save_knowledge_units_bulk([asdict(unit) for unit in units])
 
-    @staticmethod
-    def _normalized_content(value: Any) -> Any:
-        if isinstance(value, dict):
-            return {k: MemoryPlane._normalized_content(value[k]) for k in sorted(value)}
-        if isinstance(value, list):
-            return [MemoryPlane._normalized_content(item) for item in value]
-        if isinstance(value, str):
-            return " ".join(value.strip().lower().split())
-        return value
-
-    @classmethod
-    def _content_hash(cls, content: Any) -> str:
-        normalized = cls._normalized_content(content)
-        if isinstance(normalized, dict) and "text" in normalized:
-            normalized = {"text": normalized["text"]}
-        encoded = json.dumps(normalized, ensure_ascii=False, sort_keys=True, separators=(",", ":"))
-        return sha256(encoded.encode("utf-8")).hexdigest()
-
-    @staticmethod
-    def _merge_knowledge_units(target: KnowledgeUnit, incoming: KnowledgeUnit) -> KnowledgeUnit:
-        merged_conflicts = sorted(set(target.conflict_ids + incoming.conflict_ids))
-        return KnowledgeUnit(
-            id=target.id,
-            knowledge_type=target.knowledge_type,
-            content=target.content,
-            source=target.source,
-            confidence=max(target.confidence, incoming.confidence),
-            valid_boundary=target.valid_boundary,
-            invalid_boundary=target.invalid_boundary or incoming.invalid_boundary,
-            conflict_ids=merged_conflicts,
-        )
-
-    def save_knowledge_units_bulk(self, units: List[KnowledgeUnit]) -> Dict[str, Any]:
-        inserted_ids: List[str] = []
-        failed: List[Dict[str, str]] = []
-        if not units:
-            return {"inserted_ids": inserted_ids, "failed": failed}
-
+    def save_knowledge_units_bulk(self, payloads: List[Dict[str, Any]]) -> Dict[str, List[str]]:
+        inserted: List[str] = []
+        skipped: List[str] = []
         with self._connect() as conn:
-            rows = conn.execute("SELECT id, payload FROM knowledge_units").fetchall()
-            hash_to_unit: Dict[str, KnowledgeUnit] = {}
-            for row in rows:
-                existing = KnowledgeUnit.from_dict(json.loads(row[1]))
-                hash_to_unit[self._content_hash(existing.content)] = existing
-
-            batch_hashes: Dict[str, KnowledgeUnit] = {}
-            for ku in units:
-                content_hash = self._content_hash(ku.content)
-                duplicate = batch_hashes.get(content_hash) or hash_to_unit.get(content_hash)
-                if duplicate and duplicate.id != ku.id:
-                    merged = self._merge_knowledge_units(duplicate, ku)
+            conn.execute("BEGIN")
+            try:
+                for payload in payloads:
+                    ku = KnowledgeUnit.from_dict(payload)
+                    raw = asdict(ku)
+                    phash = self._payload_hash(raw)
+                    existing = conn.execute(
+                        "SELECT payload_hash FROM knowledge_units WHERE id = ?",
+                        (ku.id,),
+                    ).fetchone()
+                    if existing and existing[0] == phash:
+                        skipped.append(ku.id)
+                        continue
                     conn.execute(
-                        "INSERT OR REPLACE INTO knowledge_units(id, payload, updated_at) VALUES (?, ?, CURRENT_TIMESTAMP)",
-                        (merged.id, json.dumps(asdict(merged), ensure_ascii=False)),
+                        "INSERT OR REPLACE INTO knowledge_units(id, payload, payload_hash, updated_at) VALUES (?, ?, ?, CURRENT_TIMESTAMP)",
+                        (ku.id, json.dumps(raw, ensure_ascii=False), phash),
                     )
-                    hash_to_unit[content_hash] = merged
-                    batch_hashes[content_hash] = merged
-                    failed.append(
-                        {
-                            "id": ku.id,
-                            "reason": f"duplicate_content: merged_into:{merged.id}",
-                        }
-                    )
-                    continue
-
-                conn.execute(
-                    "INSERT OR REPLACE INTO knowledge_units(id, payload, updated_at) VALUES (?, ?, CURRENT_TIMESTAMP)",
-                    (ku.id, json.dumps(asdict(ku), ensure_ascii=False)),
-                )
-                hash_to_unit[content_hash] = ku
-                batch_hashes[content_hash] = ku
-                inserted_ids.append(ku.id)
-
-        return {"inserted_ids": inserted_ids, "failed": failed}
+                    inserted.append(ku.id)
+                conn.commit()
+            except Exception:
+                conn.rollback()
+                raise
+        return {"inserted": inserted, "skipped": skipped}
 
     def load_knowledge_units(self) -> List[KnowledgeUnit]:
         with self._connect() as conn:
@@ -151,9 +116,7 @@ class MemoryPlane:
 
     def load_knowledge_units_with_timestamps(self) -> List[Dict[str, Any]]:
         with self._connect() as conn:
-            rows = conn.execute(
-                "SELECT payload, updated_at FROM knowledge_units ORDER BY id"
-            ).fetchall()
+            rows = conn.execute("SELECT payload, updated_at FROM knowledge_units ORDER BY id").fetchall()
         result: List[Dict[str, Any]] = []
         for row in rows:
             payload = json.loads(row[0])
@@ -190,14 +153,42 @@ class MemoryPlane:
         self.save_ontology_entities(list(knowledge_graph.entities.values()))
         with self._connect() as conn:
             conn.execute(
-                "INSERT INTO judgements(goal, payload) VALUES (?, ?)",
-                (judgement.goal, json.dumps(judgement.decisions, ensure_ascii=False)),
+                "INSERT INTO judgements(goal, payload, diagnostics) VALUES (?, ?, ?)",
+                (
+                    judgement.goal,
+                    json.dumps(judgement.decisions, ensure_ascii=False),
+                    json.dumps(judgement.diagnostics, ensure_ascii=False),
+                ),
             )
+
+    def save_loop_run(self, goal: str, boundary: str, skill_report: List[Dict[str, Any]]) -> None:
+        with self._connect() as conn:
+            conn.execute(
+                "INSERT INTO loop_runs(goal, boundary, skill_report) VALUES (?, ?, ?)",
+                (goal, boundary, json.dumps(skill_report, ensure_ascii=False)),
+            )
+
+    def load_loop_runs(self, limit: int = 20) -> List[Dict[str, Any]]:
+        with self._connect() as conn:
+            rows = conn.execute(
+                "SELECT id, goal, boundary, skill_report, created_at FROM loop_runs ORDER BY id DESC LIMIT ?",
+                (limit,),
+            ).fetchall()
+        return [
+            {
+                "id": row[0],
+                "goal": row[1],
+                "boundary": row[2],
+                "skill_report": json.loads(row[3]),
+                "created_at": row[4],
+            }
+            for row in rows
+        ]
 
     def load_judgements(self, limit: int = 20) -> List[Dict[str, Any]]:
         with self._connect() as conn:
             rows = conn.execute(
-                "SELECT id, goal, payload, created_at FROM judgements ORDER BY id DESC LIMIT ?",
+                "SELECT id, goal, payload, diagnostics, created_at FROM judgements ORDER BY id DESC LIMIT ?",
                 (limit,),
             ).fetchall()
         result: List[Dict[str, Any]] = []
@@ -207,7 +198,8 @@ class MemoryPlane:
                     "id": row[0],
                     "goal": row[1],
                     "decisions": json.loads(row[2]),
-                    "created_at": row[3],
+                    "diagnostics": json.loads(row[3]),
+                    "created_at": row[4],
                 }
             )
         return result
