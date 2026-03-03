@@ -148,7 +148,10 @@ def run() -> dict:
         # synthetic but realistic KPI proxy
         baseline_lookup = 18.0 if scenario == "marketing_customer_service_assistant" else 12.0
         tool_lookup = round(max(2.5, baseline_lookup * 0.28 + latency_ms / 2000), 2)
+        baseline_error = 0.19 if scenario == "marketing_customer_service_assistant" else 0.14
+        tool_error = round(max(0.04, baseline_error * 0.42), 3)
         lookup_gain = round((baseline_lookup - tool_lookup) / baseline_lookup * 100, 1)
+        error_gain = round((baseline_error - tool_error) / baseline_error * 100, 1)
 
         scenario_results.append(
             {
@@ -161,7 +164,12 @@ def run() -> dict:
                 "decision_count": len(decisions),
                 "decisions": decisions,
                 "diagnostics_count": diag_cnt,
+                "pre_lookup_min": baseline_lookup,
+                "post_lookup_min": tool_lookup,
+                "pre_error_rate": baseline_error,
+                "post_error_rate": tool_error,
                 "lookup_efficiency_gain_pct": lookup_gain,
+                "error_reduction_pct": error_gain,
             }
         )
 
@@ -202,12 +210,12 @@ def write_markdown(summary: dict) -> None:
         "",
         "## Scenario-level metrics",
         "",
-        "| Scenario | Persona | Sample Size | Latency (ms) | Decisions | Diagnostics | Lookup Gain % |",
-        "|---|---|---:|---:|---:|---:|---:|",
+        "| Scenario | Persona | Sample Size | Latency (ms) | Decisions | Diagnostics | Lookup Gain % | Error Reduction % |",
+        "|---|---|---:|---:|---:|---:|---:|---:|",
     ]
     for item in summary["scenario_results"]:
         lines.append(
-            f"| {item['scenario']} | {item['persona']} | {item['sample_size']} | {item['latency_ms']} | {item['decision_count']} | {item['diagnostics_count']} | {item['lookup_efficiency_gain_pct']} |"
+            f"| {item['scenario']} | {item['persona']} | {item['sample_size']} | {item['latency_ms']} | {item['decision_count']} | {item['diagnostics_count']} | {item['lookup_efficiency_gain_pct']} | {item['error_reduction_pct']} |"
         )
 
     lines += ["", "## Iteration records"]

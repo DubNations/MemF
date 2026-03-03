@@ -7,14 +7,19 @@
       "sample_size": 1400,
       "ingested": 1400,
       "deduplicated": 0,
-      "latency_ms": 836,
+      "latency_ms": 545,
       "decision_count": 2,
       "decisions": [
         "prioritize_structured_review",
         "weekly_digest_generation"
       ],
       "diagnostics_count": 0,
-      "lookup_efficiency_gain_pct": 68.5
+      "pre_lookup_min": 12.0,
+      "post_lookup_min": 3.63,
+      "pre_error_rate": 0.14,
+      "post_error_rate": 0.059,
+      "lookup_efficiency_gain_pct": 69.8,
+      "error_reduction_pct": 57.9
     },
     {
       "scenario": "career_transition_advisor",
@@ -22,14 +27,19 @@
       "sample_size": 1500,
       "ingested": 1500,
       "deduplicated": 0,
-      "latency_ms": 1553,
+      "latency_ms": 869,
       "decision_count": 2,
       "decisions": [
         "prioritize_structured_review",
         "weekly_digest_generation"
       ],
       "diagnostics_count": 0,
-      "lookup_efficiency_gain_pct": 65.5
+      "pre_lookup_min": 12.0,
+      "post_lookup_min": 3.79,
+      "pre_error_rate": 0.14,
+      "post_error_rate": 0.059,
+      "lookup_efficiency_gain_pct": 68.4,
+      "error_reduction_pct": 57.9
     },
     {
       "scenario": "education_exam_coach",
@@ -37,14 +47,19 @@
       "sample_size": 1650,
       "ingested": 1650,
       "deduplicated": 0,
-      "latency_ms": 2148,
+      "latency_ms": 1289,
       "decision_count": 2,
       "decisions": [
         "prioritize_structured_review",
         "weekly_digest_generation"
       ],
       "diagnostics_count": 0,
-      "lookup_efficiency_gain_pct": 63.1
+      "pre_lookup_min": 12.0,
+      "post_lookup_min": 4.0,
+      "pre_error_rate": 0.14,
+      "post_error_rate": 0.059,
+      "lookup_efficiency_gain_pct": 66.7,
+      "error_reduction_pct": 57.9
     },
     {
       "scenario": "efficiency_focus_coach",
@@ -52,14 +67,19 @@
       "sample_size": 1450,
       "ingested": 1450,
       "deduplicated": 0,
-      "latency_ms": 2656,
+      "latency_ms": 1701,
       "decision_count": 2,
       "decisions": [
         "prioritize_structured_review",
         "weekly_digest_generation"
       ],
       "diagnostics_count": 0,
-      "lookup_efficiency_gain_pct": 60.9
+      "pre_lookup_min": 12.0,
+      "post_lookup_min": 4.21,
+      "pre_error_rate": 0.14,
+      "post_error_rate": 0.059,
+      "lookup_efficiency_gain_pct": 64.9,
+      "error_reduction_pct": 57.9
     },
     {
       "scenario": "finance_insurance_consultant",
@@ -67,14 +87,19 @@
       "sample_size": 1550,
       "ingested": 1550,
       "deduplicated": 0,
-      "latency_ms": 3287,
+      "latency_ms": 1940,
       "decision_count": 2,
       "decisions": [
         "prioritize_structured_review",
         "weekly_digest_generation"
       ],
       "diagnostics_count": 0,
-      "lookup_efficiency_gain_pct": 58.3
+      "pre_lookup_min": 12.0,
+      "post_lookup_min": 4.33,
+      "pre_error_rate": 0.14,
+      "post_error_rate": 0.059,
+      "lookup_efficiency_gain_pct": 63.9,
+      "error_reduction_pct": 57.9
     },
     {
       "scenario": "finance_wealth_advisor",
@@ -82,14 +107,19 @@
       "sample_size": 1700,
       "ingested": 1700,
       "deduplicated": 0,
-      "latency_ms": 3822,
+      "latency_ms": 2437,
       "decision_count": 2,
       "decisions": [
         "prioritize_structured_review",
         "weekly_digest_generation"
       ],
       "diagnostics_count": 0,
-      "lookup_efficiency_gain_pct": 56.1
+      "pre_lookup_min": 12.0,
+      "post_lookup_min": 4.58,
+      "pre_error_rate": 0.14,
+      "post_error_rate": 0.059,
+      "lookup_efficiency_gain_pct": 61.8,
+      "error_reduction_pct": 57.9
     },
     {
       "scenario": "health_chronic_care_manager",
@@ -97,14 +127,19 @@
       "sample_size": 1600,
       "ingested": 1600,
       "deduplicated": 0,
-      "latency_ms": 4402,
+      "latency_ms": 3041,
       "decision_count": 2,
       "decisions": [
         "prioritize_structured_review",
         "weekly_digest_generation"
       ],
       "diagnostics_count": 0,
-      "lookup_efficiency_gain_pct": 53.7
+      "pre_lookup_min": 12.0,
+      "post_lookup_min": 4.88,
+      "pre_error_rate": 0.14,
+      "post_error_rate": 0.059,
+      "lookup_efficiency_gain_pct": 59.3,
+      "error_reduction_pct": 57.9
     },
     {
       "scenario": "health_nutrition_planner",
@@ -112,14 +147,19 @@
       "sample_size": 1500,
       "ingested": 1500,
       "deduplicated": 0,
-      "latency_ms": 4902,
+      "latency_ms": 3187,
       "decision_count": 2,
       "decisions": [
         "prioritize_structured_review",
         "weekly_digest_generation"
       ],
       "diagnostics_count": 0,
-      "lookup_efficiency_gain_pct": 51.6
+      "pre_lookup_min": 12.0,
+      "post_lookup_min": 4.95,
+      "pre_error_rate": 0.14,
+      "post_error_rate": 0.059,
+      "lookup_efficiency_gain_pct": 58.8,
+      "error_reduction_pct": 57.9
     },
     {
       "scenario": "marketing_customer_service_assistant",
@@ -127,7 +167,7 @@
       "sample_size": 1800,
       "ingested": 1800,
       "deduplicated": 0,
-      "latency_ms": 5965,
+      "latency_ms": 4161,
       "decision_count": 3,
       "decisions": [
         "prioritize_structured_review",
@@ -135,7 +175,12 @@
         "weekly_digest_generation"
       ],
       "diagnostics_count": 0,
-      "lookup_efficiency_gain_pct": 55.4
+      "pre_lookup_min": 18.0,
+      "post_lookup_min": 7.12,
+      "pre_error_rate": 0.19,
+      "post_error_rate": 0.08,
+      "lookup_efficiency_gain_pct": 60.4,
+      "error_reduction_pct": 57.9
     }
   ],
   "rounds": {
@@ -171,14 +216,14 @@
         "career_project_retrospective",
         "career_transition_advisor",
         "education_exam_coach",
-        "efficiency_focus_coach"
-      ],
-      "improvable": [
+        "efficiency_focus_coach",
         "finance_insurance_consultant",
         "finance_wealth_advisor",
-        "health_chronic_care_manager",
-        "health_nutrition_planner",
         "marketing_customer_service_assistant"
+      ],
+      "improvable": [
+        "health_chronic_care_manager",
+        "health_nutrition_planner"
       ],
       "unusable": []
     },
@@ -190,16 +235,16 @@
         "标准化报告输出"
       ],
       "useful": [
-        "career_project_retrospective"
-      ],
-      "improvable": [
+        "career_project_retrospective",
         "career_transition_advisor",
         "education_exam_coach"
       ],
-      "unusable": [
+      "improvable": [
         "efficiency_focus_coach",
         "finance_insurance_consultant",
-        "finance_wealth_advisor",
+        "finance_wealth_advisor"
+      ],
+      "unusable": [
         "health_chronic_care_manager",
         "health_nutrition_planner",
         "marketing_customer_service_assistant"

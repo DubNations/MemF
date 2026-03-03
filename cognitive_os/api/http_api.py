@@ -8,19 +8,23 @@ from http.server import BaseHTTPRequestHandler, HTTPServer
 from pathlib import Path
 from urllib.parse import parse_qs, urlparse
 
+from cognitive_os.brain.assistant import PersonalKnowledgeAssistant
+from cognitive_os.brain.toolkit import BrainToolkit
 from cognitive_os.core.cognition_loop import CognitiveLoop
 from cognitive_os.experiments.generate_datasets import generate as generate_datasets
 from cognitive_os.experiments.run_iterations import run as run_iterations
-from cognitive_os.ingestion.document_pipeline import DocumentPipeline
 from cognitive_os.memory.repository import MemoryPlane
 from cognitive_os.ontology.ontology_entity import KnowledgeUnit
 from cognitive_os.rules.rule import Rule
 from cognitive_os.skills.registry import SkillManager
+from cognitive_os.vector.vector_store import LocalVectorDB
 
 
 class _Handler(BaseHTTPRequestHandler):
     loop: CognitiveLoop
     memory: MemoryPlane
+    assistant: PersonalKnowledgeAssistant
+    toolkit: BrainToolkit
 
     def _send_json(self, status: int, payload: dict) -> None:
         data = json.dumps(payload, ensure_ascii=False).encode("utf-8")
@@ -31,15 +35,7 @@ class _Handler(BaseHTTPRequestHandler):
         self.wfile.write(data)
 
     def _error(self, status: int, code: str, message: str, details: str = "") -> None:
-        self._send_json(
-            status,
-            {
-                "code": code,
-                "message": message,
-                "details": details,
-                "request_id": str(uuid.uuid4()),
-            },
-        )
+        self._send_json(status, {"code": code, "message": message, "details": details, "request_id": str(uuid.uuid4())})
 
     def _read_json(self) -> dict:
         size = int(self.headers.get("Content-Length", "0"))
@@ -49,9 +45,7 @@ class _Handler(BaseHTTPRequestHandler):
 
     def _require_auth(self) -> bool:
         expected = os.getenv("COGNITIVE_OS_API_TOKEN", "")
-        if not expected:
-            return True
-        return self.headers.get("X-API-Key", "") == expected
+        return not expected or self.headers.get("X-API-Key", "") == expected
 
     @staticmethod
     def _validate_rule(payload: dict) -> str:
@@ -94,6 +88,12 @@ class _Handler(BaseHTTPRequestHandler):
             self._send_json(200, {"items": [asdict(x) for x in self.memory.load_knowledge_units()]})
             return
 
+        if parsed.path == "/api/documents":
+            qs = parse_qs(parsed.query)
+            limit = int(qs.get("limit", ["50"])[0])
+            self._send_json(200, {"items": self.memory.load_documents(limit=limit)})
+            return
+
         if parsed.path == "/api/judgements":
             qs = parse_qs(parsed.query)
             limit = int(qs.get("limit", ["20"])[0])
@@ -106,41 +106,6 @@ class _Handler(BaseHTTPRequestHandler):
             self._send_json(200, {"items": self.memory.load_loop_runs(limit=limit)})
             return
 
-        if parsed.path == "/api/documents":
-            qs = parse_qs(parsed.query)
-            limit = int(qs.get("limit", ["50"])[0])
-            self._send_json(200, {"items": self.memory.load_documents(limit=limit)})
-            return
-
-        if parsed.path == "/api/cases/marketing-assistant":
-            self._send_json(
-                200,
-                {
-                    "case": "marketing_customer_service_assistant",
-                    "without_tool": {
-                        "avg_regulation_lookup_min": 18.0,
-                        "first_response_sec": 140,
-                        "policy_error_rate": 0.19,
-                    },
-                    "with_tool": {
-                        "avg_regulation_lookup_min": 4.7,
-                        "first_response_sec": 46,
-                        "policy_error_rate": 0.06,
-                    },
-                    "improvement": {
-                        "lookup_efficiency_gain_pct": 73.9,
-                        "response_time_reduction_pct": 67.1,
-                        "error_rate_reduction_pct": 68.4,
-                    },
-                    "value_points": [
-                        "国家-企业-部门制度统一检索",
-                        "规章冲突识别与追溯",
-                        "回复建议可解释与可复核",
-                    ],
-                },
-            )
-            return
-
         if parsed.path == "/api/reports/summary":
             report_path = Path("cognitive_os/experiments/reports/summary.json")
             if not report_path.exists():
@@ -149,14 +114,14 @@ class _Handler(BaseHTTPRequestHandler):
             self._send_json(200, json.loads(report_path.read_text(encoding="utf-8")))
             return
 
-        if parsed.path == "/api/scenario/finance":
-            items = self.memory.load_judgements(limit=5)
+        if parsed.path == "/api/cases/marketing-assistant":
             self._send_json(
                 200,
                 {
-                    "scenario": "finance_risk_assessment",
-                    "description": "Kernel 用于贷款风险预审，低置信知识由 skill 补齐，规则输出可审计约束。",
-                    "recent_results": items,
+                    "case": "marketing_customer_service_assistant",
+                    "without_tool": {"avg_regulation_lookup_min": 18.0, "first_response_sec": 140, "policy_error_rate": 0.19},
+                    "with_tool": {"avg_regulation_lookup_min": 4.7, "first_response_sec": 46, "policy_error_rate": 0.06},
+                    "improvement": {"lookup_efficiency_gain_pct": 73.9, "response_time_reduction_pct": 67.1, "error_rate_reduction_pct": 68.4},
                 },
             )
             return
@@ -180,30 +145,6 @@ class _Handler(BaseHTTPRequestHandler):
             self._send_json(201, {"status": "ok", "id": rule.id})
             return
 
-        if self.path == "/api/documents/upload":
-            payload = self._read_json()
-            filename = payload.get("filename", "")
-            content_base64 = payload.get("content_base64", "")
-            scenario = payload.get("scenario", "general")
-            source = payload.get("source", "private")
-
-            if not filename or not content_base64:
-                self._error(400, "INVALID_DOCUMENT", "Missing filename or content_base64")
-                return
-
-            parse_result, text = DocumentPipeline.parse_base64_document(filename, content_base64)
-            metadata = DocumentPipeline.map_document_metadata(parse_result, scenario)
-            self.memory.save_document_record(metadata)
-
-            if parse_result.status != "OK":
-                self._error(400, "DOCUMENT_PARSE_FAILED", "Document parse failed", parse_result.message)
-                return
-
-            units = DocumentPipeline.to_knowledge_units(filename, text, scenario=scenario, source=source)
-            ingestion = self.memory.save_knowledge_units_bulk([asdict(x) for x in units])
-            self._send_json(201, {"status": "ok", "document": metadata, "knowledge_ingestion": ingestion})
-            return
-
         if self.path == "/api/knowledge":
             payload = self._read_json()
             err = self._validate_ku(payload)
@@ -218,8 +159,7 @@ class _Handler(BaseHTTPRequestHandler):
         if self.path == "/api/knowledge/batch":
             payload = self._read_json()
             items = payload.get("items", [])
-            valid = []
-            errors = []
+            valid, errors = [], []
             for item in items:
                 err = self._validate_ku(item)
                 if err:
@@ -228,6 +168,42 @@ class _Handler(BaseHTTPRequestHandler):
                     valid.append(item)
             result = self.memory.save_knowledge_units_bulk(valid)
             self._send_json(201, {"status": "ok", "result": result, "errors": errors})
+            return
+
+        if self.path == "/api/documents/upload":
+            payload = self._read_json()
+            filename = payload.get("filename", "")
+            content_base64 = payload.get("content_base64", "")
+            scenario = payload.get("scenario", "general")
+            source = payload.get("source", "private")
+            if not filename or not content_base64:
+                self._error(400, "INVALID_DOCUMENT", "Missing filename or content_base64")
+                return
+            result = self.toolkit.upload_document(filename, content_base64, scenario=scenario, source=source)
+            if result["status"] != "OK":
+                self._error(400, "DOCUMENT_PARSE_FAILED", "Document parse failed", result["metadata"].get("message", ""))
+                return
+            self._send_json(201, {"status": "ok", **result})
+            return
+
+        if self.path == "/api/assistant/query":
+            payload = self._read_json()
+            query = payload.get("query", "")
+            scenario = payload.get("scenario", "general")
+            if not query:
+                self._error(400, "INVALID_QUERY", "query is required")
+                return
+            result = self.assistant.handle_query(query, scenario=scenario)
+            self._send_json(
+                200,
+                {
+                    "answer": result.answer,
+                    "tool_trace": result.tool_trace,
+                    "retrieved": result.retrieved,
+                    "model": result.model,
+                    "used_remote_model": result.used_remote_model,
+                },
+            )
             return
 
         if self.path == "/api/experiments/run":
@@ -240,14 +216,7 @@ class _Handler(BaseHTTPRequestHandler):
         if self.path == "/cognition/run":
             payload = self._read_json()
             judgement = self.loop.run(payload)
-            self._send_json(
-                200,
-                {
-                    "goal": judgement.goal,
-                    "decisions": judgement.decisions,
-                    "diagnostics": judgement.diagnostics,
-                },
-            )
+            self._send_json(200, {"goal": judgement.goal, "decisions": judgement.decisions, "diagnostics": judgement.diagnostics})
             return
 
         self.send_error(404)
@@ -256,8 +225,16 @@ class _Handler(BaseHTTPRequestHandler):
 def run_http_api(host: str = "0.0.0.0", port: int = 8000, db_path: str = "./data/memory.db") -> None:
     memory = MemoryPlane(Path(db_path))
     skill_manager = SkillManager()
+    loop = CognitiveLoop(memory, skill_manager)
+    vector_db = LocalVectorDB(Path(db_path).with_suffix(".vector.db"))
+    toolkit = BrainToolkit(memory=memory, loop=loop, vector_db=vector_db)
+    assistant = PersonalKnowledgeAssistant(toolkit=toolkit)
+
     _Handler.memory = memory
-    _Handler.loop = CognitiveLoop(memory, skill_manager)
+    _Handler.loop = loop
+    _Handler.toolkit = toolkit
+    _Handler.assistant = assistant
+
     server = HTTPServer((host, port), _Handler)
     print(f"Cognitive OS API running at http://{host}:{port}")
     server.serve_forever()
