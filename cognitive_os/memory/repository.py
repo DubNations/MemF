@@ -252,6 +252,7 @@ class MemoryPlane:
             for row in rows
         ]
 
+
     @staticmethod
     def parse_datetime(raw: str) -> datetime:
         return datetime.strptime(raw, "%Y-%m-%d %H:%M:%S")

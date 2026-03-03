@@ -25,6 +25,7 @@ python -m cognitive_os.experiments.generate_datasets
 ```
 
 ### 4) 执行三轮验证—分类—处理迭代
+### 4) 执行三轮验证—分类—处理迭代
 
 ```bash
 python -m cognitive_os.experiments.run_iterations
@@ -41,6 +42,7 @@ python -m cognitive_os.experiments.run_iterations
 export COGNITIVE_OS_API_TOKEN=your_token
 ```
 请求附带 Header：`X-API-Key: your_token`
+请求附带 Header：`X-API-Key: your_token`
 
 接口：
 - `POST /api/rules`
@@ -48,6 +50,8 @@ export COGNITIVE_OS_API_TOKEN=your_token
 - `POST /api/knowledge`
 - `POST /api/knowledge/batch`
 - `GET /api/knowledge`
+- `POST /api/documents/upload`  # DOC/PDF 上传解析
+- `GET /api/documents?limit=20`
 - `POST /api/documents/upload`  # DOC/PDF 上传解析
 - `GET /api/documents?limit=20`
 - `POST /cognition/run`
@@ -58,12 +62,16 @@ export COGNITIVE_OS_API_TOKEN=your_token
 - `GET /api/cases/marketing-assistant`
 
 ## 测试
+- `GET /api/cases/marketing-assistant`
+
+## 测试
 
 ```bash
 python -m pytest -q
 ```
 
 覆盖：
+- DOC/PDF 文档解析与映射
 - DOC/PDF 文档解析与映射
 - DSL 安全执行
 - Skill 超时与路由隔离
