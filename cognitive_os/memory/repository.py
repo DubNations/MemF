@@ -58,6 +58,20 @@ class MemoryPlane:
                     skill_report TEXT NOT NULL,
                     created_at DATETIME DEFAULT CURRENT_TIMESTAMP
                 );
+<<<<<<< codex/review-cognitive-os-kernel-implementation-specs-cuyls0
+                CREATE TABLE IF NOT EXISTS documents (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    filename TEXT NOT NULL,
+                    format TEXT NOT NULL,
+                    status TEXT NOT NULL,
+                    sections INTEGER NOT NULL,
+                    text_length INTEGER NOT NULL,
+                    scenario TEXT NOT NULL,
+                    message TEXT NOT NULL,
+                    created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+                );
+=======
+>>>>>>> main
                 """
             )
 
@@ -204,6 +218,46 @@ class MemoryPlane:
             )
         return result
 
+<<<<<<< codex/review-cognitive-os-kernel-implementation-specs-cuyls0
+
+    def save_document_record(self, metadata: Dict[str, Any]) -> None:
+        with self._connect() as conn:
+            conn.execute(
+                "INSERT INTO documents(filename, format, status, sections, text_length, scenario, message) VALUES (?, ?, ?, ?, ?, ?, ?)",
+                (
+                    metadata.get("filename", ""),
+                    metadata.get("format", ""),
+                    metadata.get("status", ""),
+                    int(metadata.get("sections", 0)),
+                    int(metadata.get("text_length", 0)),
+                    metadata.get("scenario", ""),
+                    metadata.get("message", ""),
+                ),
+            )
+
+    def load_documents(self, limit: int = 50) -> List[Dict[str, Any]]:
+        with self._connect() as conn:
+            rows = conn.execute(
+                "SELECT id, filename, format, status, sections, text_length, scenario, message, created_at FROM documents ORDER BY id DESC LIMIT ?",
+                (limit,),
+            ).fetchall()
+        return [
+            {
+                "id": row[0],
+                "filename": row[1],
+                "format": row[2],
+                "status": row[3],
+                "sections": row[4],
+                "text_length": row[5],
+                "scenario": row[6],
+                "message": row[7],
+                "created_at": row[8],
+            }
+            for row in rows
+        ]
+
+=======
+>>>>>>> main
     @staticmethod
     def parse_datetime(raw: str) -> datetime:
         return datetime.strptime(raw, "%Y-%m-%d %H:%M:%S")

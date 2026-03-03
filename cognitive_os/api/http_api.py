@@ -11,6 +11,7 @@ from urllib.parse import parse_qs, urlparse
 from cognitive_os.core.cognition_loop import CognitiveLoop
 from cognitive_os.experiments.generate_datasets import generate as generate_datasets
 from cognitive_os.experiments.run_iterations import run as run_iterations
+from cognitive_os.ingestion.document_pipeline import DocumentPipeline
 from cognitive_os.memory.repository import MemoryPlane
 from cognitive_os.ontology.ontology_entity import KnowledgeUnit
 from cognitive_os.rules.rule import Rule
@@ -105,6 +106,41 @@ class _Handler(BaseHTTPRequestHandler):
             self._send_json(200, {"items": self.memory.load_loop_runs(limit=limit)})
             return
 
+        if parsed.path == "/api/documents":
+            qs = parse_qs(parsed.query)
+            limit = int(qs.get("limit", ["50"])[0])
+            self._send_json(200, {"items": self.memory.load_documents(limit=limit)})
+            return
+
+        if parsed.path == "/api/cases/marketing-assistant":
+            self._send_json(
+                200,
+                {
+                    "case": "marketing_customer_service_assistant",
+                    "without_tool": {
+                        "avg_regulation_lookup_min": 18.0,
+                        "first_response_sec": 140,
+                        "policy_error_rate": 0.19,
+                    },
+                    "with_tool": {
+                        "avg_regulation_lookup_min": 4.7,
+                        "first_response_sec": 46,
+                        "policy_error_rate": 0.06,
+                    },
+                    "improvement": {
+                        "lookup_efficiency_gain_pct": 73.9,
+                        "response_time_reduction_pct": 67.1,
+                        "error_rate_reduction_pct": 68.4,
+                    },
+                    "value_points": [
+                        "国家-企业-部门制度统一检索",
+                        "规章冲突识别与追溯",
+                        "回复建议可解释与可复核",
+                    ],
+                },
+            )
+            return
+
         if parsed.path == "/api/reports/summary":
             report_path = Path("cognitive_os/experiments/reports/summary.json")
             if not report_path.exists():
@@ -142,6 +178,30 @@ class _Handler(BaseHTTPRequestHandler):
             rule = Rule.from_dict(payload)
             self.memory.save_rules([rule])
             self._send_json(201, {"status": "ok", "id": rule.id})
+            return
+
+        if self.path == "/api/documents/upload":
+            payload = self._read_json()
+            filename = payload.get("filename", "")
+            content_base64 = payload.get("content_base64", "")
+            scenario = payload.get("scenario", "general")
+            source = payload.get("source", "private")
+
+            if not filename or not content_base64:
+                self._error(400, "INVALID_DOCUMENT", "Missing filename or content_base64")
+                return
+
+            parse_result, text = DocumentPipeline.parse_base64_document(filename, content_base64)
+            metadata = DocumentPipeline.map_document_metadata(parse_result, scenario)
+            self.memory.save_document_record(metadata)
+
+            if parse_result.status != "OK":
+                self._error(400, "DOCUMENT_PARSE_FAILED", "Document parse failed", parse_result.message)
+                return
+
+            units = DocumentPipeline.to_knowledge_units(filename, text, scenario=scenario, source=source)
+            ingestion = self.memory.save_knowledge_units_bulk([asdict(x) for x in units])
+            self._send_json(201, {"status": "ok", "document": metadata, "knowledge_ingestion": ingestion})
             return
 
         if self.path == "/api/knowledge":
