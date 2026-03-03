@@ -58,7 +58,6 @@ class MemoryPlane:
                     skill_report TEXT NOT NULL,
                     created_at DATETIME DEFAULT CURRENT_TIMESTAMP
                 );
-<<<<<<< codex/review-cognitive-os-kernel-implementation-specs-cuyls0
                 CREATE TABLE IF NOT EXISTS documents (
                     id INTEGER PRIMARY KEY AUTOINCREMENT,
                     filename TEXT NOT NULL,
@@ -70,8 +69,6 @@ class MemoryPlane:
                     message TEXT NOT NULL,
                     created_at DATETIME DEFAULT CURRENT_TIMESTAMP
                 );
-=======
->>>>>>> main
                 """
             )
 
@@ -218,7 +215,6 @@ class MemoryPlane:
             )
         return result
 
-<<<<<<< codex/review-cognitive-os-kernel-implementation-specs-cuyls0
 
     def save_document_record(self, metadata: Dict[str, Any]) -> None:
         with self._connect() as conn:
@@ -256,8 +252,7 @@ class MemoryPlane:
             for row in rows
         ]
 
-=======
->>>>>>> main
+
     @staticmethod
     def parse_datetime(raw: str) -> datetime:
         return datetime.strptime(raw, "%Y-%m-%d %H:%M:%S")
