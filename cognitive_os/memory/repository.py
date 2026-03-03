@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 import sqlite3
+from hashlib import sha256
 from dataclasses import asdict, dataclass
 from datetime import datetime
 from pathlib import Path
@@ -66,12 +67,82 @@ class MemoryPlane:
         return [Rule.from_dict(json.loads(row[0])) for row in rows]
 
     def save_knowledge_units(self, units: List[KnowledgeUnit]) -> None:
+        self.save_knowledge_units_bulk(units)
+
+    @staticmethod
+    def _normalized_content(value: Any) -> Any:
+        if isinstance(value, dict):
+            return {k: MemoryPlane._normalized_content(value[k]) for k in sorted(value)}
+        if isinstance(value, list):
+            return [MemoryPlane._normalized_content(item) for item in value]
+        if isinstance(value, str):
+            return " ".join(value.strip().lower().split())
+        return value
+
+    @classmethod
+    def _content_hash(cls, content: Any) -> str:
+        normalized = cls._normalized_content(content)
+        if isinstance(normalized, dict) and "text" in normalized:
+            normalized = {"text": normalized["text"]}
+        encoded = json.dumps(normalized, ensure_ascii=False, sort_keys=True, separators=(",", ":"))
+        return sha256(encoded.encode("utf-8")).hexdigest()
+
+    @staticmethod
+    def _merge_knowledge_units(target: KnowledgeUnit, incoming: KnowledgeUnit) -> KnowledgeUnit:
+        merged_conflicts = sorted(set(target.conflict_ids + incoming.conflict_ids))
+        return KnowledgeUnit(
+            id=target.id,
+            knowledge_type=target.knowledge_type,
+            content=target.content,
+            source=target.source,
+            confidence=max(target.confidence, incoming.confidence),
+            valid_boundary=target.valid_boundary,
+            invalid_boundary=target.invalid_boundary or incoming.invalid_boundary,
+            conflict_ids=merged_conflicts,
+        )
+
+    def save_knowledge_units_bulk(self, units: List[KnowledgeUnit]) -> Dict[str, Any]:
+        inserted_ids: List[str] = []
+        failed: List[Dict[str, str]] = []
+        if not units:
+            return {"inserted_ids": inserted_ids, "failed": failed}
+
         with self._connect() as conn:
+            rows = conn.execute("SELECT id, payload FROM knowledge_units").fetchall()
+            hash_to_unit: Dict[str, KnowledgeUnit] = {}
+            for row in rows:
+                existing = KnowledgeUnit.from_dict(json.loads(row[1]))
+                hash_to_unit[self._content_hash(existing.content)] = existing
+
+            batch_hashes: Dict[str, KnowledgeUnit] = {}
             for ku in units:
+                content_hash = self._content_hash(ku.content)
+                duplicate = batch_hashes.get(content_hash) or hash_to_unit.get(content_hash)
+                if duplicate and duplicate.id != ku.id:
+                    merged = self._merge_knowledge_units(duplicate, ku)
+                    conn.execute(
+                        "INSERT OR REPLACE INTO knowledge_units(id, payload, updated_at) VALUES (?, ?, CURRENT_TIMESTAMP)",
+                        (merged.id, json.dumps(asdict(merged), ensure_ascii=False)),
+                    )
+                    hash_to_unit[content_hash] = merged
+                    batch_hashes[content_hash] = merged
+                    failed.append(
+                        {
+                            "id": ku.id,
+                            "reason": f"duplicate_content: merged_into:{merged.id}",
+                        }
+                    )
+                    continue
+
                 conn.execute(
                     "INSERT OR REPLACE INTO knowledge_units(id, payload, updated_at) VALUES (?, ?, CURRENT_TIMESTAMP)",
                     (ku.id, json.dumps(asdict(ku), ensure_ascii=False)),
                 )
+                hash_to_unit[content_hash] = ku
+                batch_hashes[content_hash] = ku
+                inserted_ids.append(ku.id)
+
+        return {"inserted_ids": inserted_ids, "failed": failed}
 
     def load_knowledge_units(self) -> List[KnowledgeUnit]:
         with self._connect() as conn:

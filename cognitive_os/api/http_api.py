@@ -5,12 +5,32 @@ from dataclasses import asdict
 from http.server import BaseHTTPRequestHandler, HTTPServer
 from pathlib import Path
 from urllib.parse import parse_qs, urlparse
+from typing import Any, Dict, List
 
 from cognitive_os.core.cognition_loop import CognitiveLoop
 from cognitive_os.memory.repository import MemoryPlane
 from cognitive_os.ontology.ontology_entity import KnowledgeUnit
 from cognitive_os.rules.rule import Rule
 from cognitive_os.skills.registry import SkillManager
+
+
+
+
+def _validate_knowledge_payload(payload: Dict[str, Any]) -> Dict[str, Any]:
+    required = ["id", "knowledge_type", "content", "source"]
+    missing = [k for k in required if k not in payload]
+    if missing:
+        return {"ok": False, "error": f"missing_fields:{','.join(missing)}"}
+
+    try:
+        confidence = float(payload.get("confidence", 0.0))
+    except (TypeError, ValueError):
+        return {"ok": False, "error": "invalid_confidence"}
+
+    if not 0.0 <= confidence <= 1.0:
+        return {"ok": False, "error": "confidence_out_of_range"}
+
+    return {"ok": True}
 
 
 class _Handler(BaseHTTPRequestHandler):
@@ -82,9 +102,53 @@ class _Handler(BaseHTTPRequestHandler):
 
         if self.path == "/api/knowledge":
             payload = self._read_json()
+            validation = _validate_knowledge_payload(payload)
+            if not validation["ok"]:
+                self._send_json(400, {"status": "error", "error": validation["error"]})
+                return
+
             ku = KnowledgeUnit.from_dict(payload)
-            self.memory.save_knowledge_units([ku])
+            result = self.memory.save_knowledge_units_bulk([ku])
+            if result["failed"]:
+                self._send_json(409, {"status": "duplicate", "id": ku.id, "result": result})
+                return
             self._send_json(201, {"status": "ok", "id": ku.id})
+            return
+
+        if self.path == "/api/knowledge/batch":
+            payload = self._read_json()
+            if not isinstance(payload, list):
+                self._send_json(400, {"status": "error", "error": "payload_must_be_array"})
+                return
+
+            valid_units: List[KnowledgeUnit] = []
+            per_item: List[Dict[str, Any]] = []
+            for item in payload:
+                if not isinstance(item, dict):
+                    per_item.append({"id": None, "ok": False, "error": "item_must_be_object"})
+                    continue
+
+                validation = _validate_knowledge_payload(item)
+                if not validation["ok"]:
+                    per_item.append({"id": item.get("id"), "ok": False, "error": validation["error"]})
+                    continue
+
+                valid_units.append(KnowledgeUnit.from_dict(item))
+                per_item.append({"id": item.get("id"), "ok": True})
+
+            persistence_result = self.memory.save_knowledge_units_bulk(valid_units)
+            failed_by_id = {entry["id"]: entry["reason"] for entry in persistence_result["failed"]}
+            for item in per_item:
+                if item.get("id") in failed_by_id:
+                    item["ok"] = False
+                    item["error"] = failed_by_id[item["id"]]
+
+            self._send_json(201, {
+                "status": "ok",
+                "inserted_ids": persistence_result["inserted_ids"],
+                "failed": persistence_result["failed"],
+                "results": per_item,
+            })
             return
 
         if self.path == "/cognition/run":
