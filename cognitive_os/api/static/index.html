@@ -3,99 +3,216 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Cognitive OS Console</title>
+  <title>Cognitive OS Studio</title>
   <style>
-    body { font-family: Arial, sans-serif; margin: 0; background: #f5f7fb; color: #1f2937; }
-    header { background: #111827; color: #fff; padding: 16px 24px; }
-    main { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; padding: 16px; }
-    .card { background: #fff; border-radius: 10px; padding: 16px; box-shadow: 0 2px 8px rgba(0,0,0,.08); }
-    h2 { margin-top: 0; font-size: 18px; }
-    textarea, input { width: 100%; box-sizing: border-box; margin: 6px 0 10px; padding: 8px; }
-    button { padding: 8px 12px; border: 0; border-radius: 6px; background: #2563eb; color: #fff; cursor: pointer; }
-    pre { background: #0b1020; color: #d1e4ff; padding: 10px; border-radius: 8px; overflow: auto; max-height: 240px; }
-    .full { grid-column: 1 / span 2; }
+    :root { --bg:#0b1020; --panel:#141b34; --soft:#1e2747; --text:#eaf0ff; --muted:#9fb1df; --accent:#5b8cff; --ok:#2dd4bf; --warn:#f59e0b; }
+    * { box-sizing: border-box; }
+    body { margin:0; font-family: Inter, ui-sans-serif, system-ui, -apple-system; background: radial-gradient(1200px 600px at 30% -10%, #273566 0%, #0b1020 55%); color:var(--text); }
+    .wrap { max-width: 1320px; margin: 0 auto; padding: 20px; }
+    header { display:flex; justify-content: space-between; align-items:center; gap: 12px; margin-bottom: 16px; }
+    h1 { margin:0; font-size: 28px; }
+    .sub { color: var(--muted); font-size: 14px; }
+    .tabs { display:flex; gap:10px; margin: 16px 0; flex-wrap: wrap; }
+    .tab { border:1px solid #2d3a6a; background:#121934; color:var(--text); border-radius:999px; padding:8px 14px; cursor:pointer; }
+    .tab.active { background: linear-gradient(90deg, #3557c7, #5b8cff); border-color: transparent; }
+    .view { display:none; }
+    .view.active { display:block; }
+    .grid { display:grid; grid-template-columns: repeat(12,1fr); gap:14px; }
+    .card { background: linear-gradient(180deg, rgba(255,255,255,0.03), rgba(255,255,255,0.01)); border:1px solid #24315f; border-radius:14px; padding:14px; box-shadow: 0 8px 24px rgba(0,0,0,.28); }
+    .span-4{grid-column: span 4;} .span-6{grid-column: span 6;} .span-8{grid-column: span 8;} .span-12{grid-column: span 12;}
+    label { display:block; color: var(--muted); font-size:12px; margin: 10px 0 6px; }
+    input, textarea, select { width:100%; background:#0f1630; color:var(--text); border:1px solid #2a3a72; border-radius:10px; padding:10px; }
+    textarea { min-height: 140px; resize: vertical; }
+    button { background: linear-gradient(90deg, #4169e1, #5b8cff); color:#fff; border:0; border-radius:10px; padding:10px 14px; cursor:pointer; font-weight: 600; }
+    button.secondary { background:#22315f; }
+    button.warn { background: linear-gradient(90deg,#c77a1a,#f59e0b); }
+    .row { display:flex; gap:10px; flex-wrap:wrap; margin-top: 10px; }
+    pre { background:#0a1026; border:1px solid #2a3768; border-radius:10px; padding:10px; max-height:280px; overflow:auto; color:#dbe7ff; }
+    .kpis { display:grid; grid-template-columns: repeat(4,1fr); gap:10px; }
+    .kpi { background:#0f1733; border:1px solid #2a3a72; border-radius:10px; padding:10px; }
+    .kpi .v { font-size:24px; font-weight:700; }
+    .kpi .n { color: var(--muted); font-size:12px; }
+    .toast { position: fixed; right: 16px; bottom:16px; background:#0f1733; border:1px solid #2a3a72; padding:10px 12px; border-radius:10px; }
+    @media (max-width: 980px){ .span-4,.span-6,.span-8,.span-12{grid-column: span 12;} .kpis{grid-template-columns:repeat(2,1fr);} }
   </style>
 </head>
 <body>
-  <header><strong>Cognitive OS 管理控制台</strong>（规则/知识管理 + 认知执行 + 场景结果）</header>
-  <main>
-    <section class="card">
-      <h2>新增 Rule</h2>
-      <textarea id="ruleInput" rows="8">{"id":"risk_rule_1","scope":"finance","condition":"knowledge_count >= 2","action_constraint":"manual_review","priority":8,"applicable_boundary":"global"}</textarea>
-      <button onclick="createRule()">保存 Rule</button>
-      <pre id="ruleResult"></pre>
+  <div class="wrap">
+    <header>
+      <div>
+        <h1>Cognitive OS Studio</h1>
+        <div class="sub">产品化控制台：数据导入 / 规则管理 / 实验运行 / 决策回放</div>
+      </div>
+      <div style="display:flex; gap:8px; align-items:center;">
+        <input id="apiKey" placeholder="X-API-Key (可选)" style="width:240px;" />
+        <button class="secondary" onclick="refreshAll()">刷新全部</button>
+      </div>
+    </header>
+
+    <div class="tabs">
+      <button class="tab active" data-tab="ops" onclick="showTab('ops')">运营台</button>
+      <button class="tab" data-tab="experiments" onclick="showTab('experiments')">9场景实验</button>
+      <button class="tab" data-tab="telemetry" onclick="showTab('telemetry')">运行遥测</button>
+    </div>
+
+    <section id="tab-ops" class="view active">
+      <div class="grid">
+        <div class="card span-6">
+          <h3>新增 Rule</h3>
+          <textarea id="ruleInput">{"id":"pk_rule_ui","scope":"personal_knowledge","condition":"knowledge_count >= 100","action_constraint":"weekly_digest_generation","priority":7,"applicable_boundary":"global"}</textarea>
+          <div class="row"><button onclick="createRule()">保存 Rule</button></div>
+          <pre id="ruleResult"></pre>
+        </div>
+
+        <div class="card span-6">
+          <h3>新增 KnowledgeUnit</h3>
+          <textarea id="kuInput">{"id":"ui_ku_1","knowledge_type":"case","content":{"topic":"focus","polarity":"pro","summary":"早晨深度工作效率更高","reinforcement":0.03},"source":"private","confidence":0.61,"valid_boundary":"global","invalid_boundary":"","conflict_ids":[]}</textarea>
+          <div class="row"><button onclick="createKu()">保存 Knowledge</button></div>
+          <pre id="kuResult"></pre>
+        </div>
+
+        <div class="card span-6">
+          <h3>批量导入（JSON数组）</h3>
+          <textarea id="batchInput">[{"id":"ui_batch_1","knowledge_type":"case","content":{"topic":"learning","polarity":"pro","summary":"间隔复习提升记忆"},"source":"public","confidence":0.52,"valid_boundary":"global"}]</textarea>
+          <div class="row"><button onclick="batchKu()">批量导入</button></div>
+          <pre id="batchResult"></pre>
+        </div>
+
+        <div class="card span-6">
+          <h3>执行 Cognition Loop</h3>
+          <textarea id="goalInput">{"goal":"个人知识优化：生成本周执行建议","boundary":"global","metadata":{"scenario":"learning_exam_prep"}}</textarea>
+          <div class="row"><button onclick="runCognition()">运行</button></div>
+          <pre id="runResult"></pre>
+        </div>
+      </div>
     </section>
 
-    <section class="card">
-      <h2>新增 KnowledgeUnit</h2>
-      <textarea id="kuInput" rows="8">{"id":"loan_case_1","knowledge_type":"case","content":"借款人信用分 610","source":"public","confidence":0.35,"valid_boundary":"global","invalid_boundary":"","conflict_ids":[]}</textarea>
-      <button onclick="createKu()">保存 Knowledge</button>
-      <pre id="kuResult"></pre>
+    <section id="tab-experiments" class="view">
+      <div class="grid">
+        <div class="card span-12">
+          <div class="row" style="justify-content:space-between; align-items:center;">
+            <h3 style="margin:0;">九场景大样本实验</h3>
+            <button class="warn" onclick="runExperiments()">一键生成数据并运行三轮迭代</button>
+          </div>
+          <p class="sub">将调用后端生成 9 个场景（每个 >1000样本）并输出分类结论。</p>
+          <div class="kpis">
+            <div class="kpi"><div class="v" id="kpiTotal">0</div><div class="n">场景总数</div></div>
+            <div class="kpi"><div class="v" id="kpiUseful">0</div><div class="n">Round1 Useful</div></div>
+            <div class="kpi"><div class="v" id="kpiImprovable">0</div><div class="n">Round1 Improvable</div></div>
+            <div class="kpi"><div class="v" id="kpiUnusable">0</div><div class="n">Round3 Unusable</div></div>
+          </div>
+          <pre id="expSummary"></pre>
+        </div>
+      </div>
     </section>
 
-    <section class="card">
-      <h2>执行 Cognition Loop</h2>
-      <textarea id="goalInput" rows="5">{"goal":"贷款预审：是否进入人工复核","boundary":"global","metadata":{"product":"loan_assistant"}}</textarea>
-      <button onclick="runCognition()">运行</button>
-      <pre id="runResult"></pre>
+    <section id="tab-telemetry" class="view">
+      <div class="grid">
+        <div class="card span-4"><h3>Rules</h3><pre id="rulesState"></pre></div>
+        <div class="card span-4"><h3>Knowledge (top 20)</h3><pre id="knowledgeState"></pre></div>
+        <div class="card span-4"><h3>Judgements</h3><pre id="judgementsState"></pre></div>
+        <div class="card span-12"><h3>Loop Runs</h3><pre id="loopRunsState"></pre></div>
+      </div>
     </section>
-
-    <section class="card">
-      <h2>金融场景结果（示例）</h2>
-      <button onclick="loadScenario()">刷新场景结果</button>
-      <pre id="scenarioResult"></pre>
-    </section>
-
-    <section class="card full">
-      <h2>当前系统状态</h2>
-      <button onclick="refreshState()">刷新规则/知识/Judgement</button>
-      <pre id="stateResult"></pre>
-    </section>
-  </main>
+  </div>
 
   <script>
-    async function postJson(url, payload) {
-      const res = await fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload)});
+    const headers = () => {
+      const key = document.getElementById('apiKey').value.trim();
+      const h = { 'Content-Type': 'application/json' };
+      if (key) h['X-API-Key'] = key;
+      return h;
+    };
+
+    async function getJson(url) {
+      const res = await fetch(url, { headers: headers() });
       return await res.json();
     }
-    async function getJson(url) { const res = await fetch(url); return await res.json(); }
 
-    async function createRule() {
-      const payload = JSON.parse(document.getElementById('ruleInput').value);
-      const data = await postJson('/api/rules', payload);
+    async function postJson(url, payload) {
+      const res = await fetch(url, { method: 'POST', headers: headers(), body: JSON.stringify(payload) });
+      return await res.json();
+    }
+
+    function showTab(name) {
+      document.querySelectorAll('.tab').forEach(x => x.classList.toggle('active', x.dataset.tab === name));
+      document.querySelectorAll('.view').forEach(x => x.classList.remove('active'));
+      document.getElementById(`tab-${name}`).classList.add('active');
+    }
+
+    function toast(msg){
+      const n = document.createElement('div'); n.className='toast'; n.textContent=msg;
+      document.body.appendChild(n); setTimeout(()=>n.remove(),1600);
+    }
+
+    async function createRule(){
+      const data = await postJson('/api/rules', JSON.parse(document.getElementById('ruleInput').value));
       document.getElementById('ruleResult').textContent = JSON.stringify(data, null, 2);
+      toast('Rule 已保存');
+      refreshTelemetry();
     }
 
-    async function createKu() {
-      const payload = JSON.parse(document.getElementById('kuInput').value);
-      const data = await postJson('/api/knowledge', payload);
+    async function createKu(){
+      const data = await postJson('/api/knowledge', JSON.parse(document.getElementById('kuInput').value));
       document.getElementById('kuResult').textContent = JSON.stringify(data, null, 2);
+      toast('Knowledge 已保存');
+      refreshTelemetry();
     }
 
-    async function runCognition() {
-      const payload = JSON.parse(document.getElementById('goalInput').value);
-      const data = await postJson('/cognition/run', payload);
+    async function batchKu(){
+      const items = JSON.parse(document.getElementById('batchInput').value);
+      const data = await postJson('/api/knowledge/batch', { items });
+      document.getElementById('batchResult').textContent = JSON.stringify(data, null, 2);
+      toast('批量导入完成');
+      refreshTelemetry();
+    }
+
+    async function runCognition(){
+      const data = await postJson('/cognition/run', JSON.parse(document.getElementById('goalInput').value));
       document.getElementById('runResult').textContent = JSON.stringify(data, null, 2);
-      refreshState();
-      loadScenario();
+      toast('认知循环执行完成');
+      refreshTelemetry();
     }
 
-    async function refreshState() {
-      const [rules, knowledge, judgements] = await Promise.all([
+    async function runExperiments(){
+      const data = await postJson('/api/experiments/run', {});
+      document.getElementById('expSummary').textContent = JSON.stringify(data.summary, null, 2);
+      const s = data.summary;
+      document.getElementById('kpiTotal').textContent = s.total_scenarios;
+      document.getElementById('kpiUseful').textContent = s.rounds.round_1_validation.useful.length;
+      document.getElementById('kpiImprovable').textContent = s.rounds.round_1_validation.improvable.length;
+      document.getElementById('kpiUnusable').textContent = s.rounds.round_3_generalization.unusable.length;
+      toast('三轮实验完成');
+    }
+
+    async function refreshTelemetry(){
+      const [rules, knowledge, judgements, loopRuns] = await Promise.all([
         getJson('/api/rules'),
         getJson('/api/knowledge'),
-        getJson('/api/judgements?limit=10')
+        getJson('/api/judgements?limit=10'),
+        getJson('/api/loop_runs?limit=10')
       ]);
-      document.getElementById('stateResult').textContent = JSON.stringify({rules, knowledge, judgements}, null, 2);
+      document.getElementById('rulesState').textContent = JSON.stringify(rules, null, 2);
+      document.getElementById('knowledgeState').textContent = JSON.stringify({items: (knowledge.items || []).slice(0,20)}, null, 2);
+      document.getElementById('judgementsState').textContent = JSON.stringify(judgements, null, 2);
+      document.getElementById('loopRunsState').textContent = JSON.stringify(loopRuns, null, 2);
     }
 
-    async function loadScenario() {
-      const data = await getJson('/api/scenario/finance');
-      document.getElementById('scenarioResult').textContent = JSON.stringify(data, null, 2);
+    async function refreshExperimentSummary() {
+      const data = await getJson('/api/reports/summary');
+      document.getElementById('expSummary').textContent = JSON.stringify(data, null, 2);
+      document.getElementById('kpiTotal').textContent = data.total_scenarios || 0;
+      document.getElementById('kpiUseful').textContent = data.rounds?.round_1_validation?.useful?.length || 0;
+      document.getElementById('kpiImprovable').textContent = data.rounds?.round_1_validation?.improvable?.length || 0;
+      document.getElementById('kpiUnusable').textContent = data.rounds?.round_3_generalization?.unusable?.length || 0;
     }
 
-    refreshState();
-    loadScenario();
+    async function refreshAll(){
+      await Promise.all([refreshTelemetry(), refreshExperimentSummary().catch(()=>{})]);
+      toast('已刷新');
+    }
+
+    refreshAll();
   </script>
 </body>
 </html>

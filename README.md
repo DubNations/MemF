@@ -37,6 +37,8 @@ export COGNITIVE_OS_API_TOKEN=your_token
 - `POST /cognition/run`
 - `GET /api/judgements?limit=10`
 - `GET /api/loop_runs?limit=10`
+- `GET /api/reports/summary`
+- `POST /api/experiments/run`
 
 ## 4) 测试
 

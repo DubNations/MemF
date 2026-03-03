@@ -9,6 +9,8 @@ from pathlib import Path
 from urllib.parse import parse_qs, urlparse
 
 from cognitive_os.core.cognition_loop import CognitiveLoop
+from cognitive_os.experiments.generate_datasets import generate as generate_datasets
+from cognitive_os.experiments.run_iterations import run as run_iterations
 from cognitive_os.memory.repository import MemoryPlane
 from cognitive_os.ontology.ontology_entity import KnowledgeUnit
 from cognitive_os.rules.rule import Rule
@@ -103,6 +105,14 @@ class _Handler(BaseHTTPRequestHandler):
             self._send_json(200, {"items": self.memory.load_loop_runs(limit=limit)})
             return
 
+        if parsed.path == "/api/reports/summary":
+            report_path = Path("cognitive_os/experiments/reports/summary.json")
+            if not report_path.exists():
+                self._error(404, "NOT_FOUND", "summary report not found", "run experiments first")
+                return
+            self._send_json(200, json.loads(report_path.read_text(encoding="utf-8")))
+            return
+
         if parsed.path == "/api/scenario/finance":
             items = self.memory.load_judgements(limit=5)
             self._send_json(
@@ -158,6 +168,13 @@ class _Handler(BaseHTTPRequestHandler):
                     valid.append(item)
             result = self.memory.save_knowledge_units_bulk(valid)
             self._send_json(201, {"status": "ok", "result": result, "errors": errors})
+            return
+
+        if self.path == "/api/experiments/run":
+            data_dir = Path("cognitive_os/experiments/data")
+            generate_datasets(data_dir)
+            summary = run_iterations()
+            self._send_json(200, {"status": "ok", "summary": summary})
             return
 
         if self.path == "/cognition/run":
