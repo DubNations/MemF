@@ -18,6 +18,7 @@ class BrainToolkit:
         "application/pdf",
         "application/msword",
         "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+        "application/octet-stream",
     }
 
     def __init__(self, memory: MemoryPlane, loop: CognitiveLoop, vector_db: LocalVectorDB) -> None:
@@ -34,7 +35,7 @@ class BrainToolkit:
             return {"ok": False, "code": "INVALID_MIME", "message": f"Unsupported mime_type: {mime_type}"}
 
         try:
-            content = base64.b64decode(content_base64)
+            content = base64.b64decode(content_base64, validate=True)
         except Exception:
             return {"ok": False, "code": "INVALID_BASE64", "message": "Content is not valid base64"}
 

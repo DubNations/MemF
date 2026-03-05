@@ -126,9 +126,24 @@ class _Handler(BaseHTTPRequestHandler):
         if parsed.path == "/api/knowledge/search":
             qs = parse_qs(parsed.query)
             query = qs.get("q", [""])[0]
-            kb_id = int(qs.get("knowledge_base_id", ["0"])[0]) or None
-            top_k = int(qs.get("top_k", ["8"])[0])
+            try:
+                kb_id = int(qs.get("knowledge_base_id", ["0"])[0]) or None
+            except ValueError:
+                kb_id = None
+            try:
+                top_k = max(1, min(50, int(qs.get("top_k", ["8"])[0])))
+            except ValueError:
+                top_k = 8
             self._send_json(200, {"items": self.toolkit.retrieve_knowledge(query, top_k=top_k, knowledge_base_id=kb_id)})
+            return
+
+        if parsed.path == "/api/knowledge/notes":
+            qs = parse_qs(parsed.query)
+            knowledge_id = qs.get("knowledge_id", [""])[0]
+            if not knowledge_id:
+                self._error(400, "INVALID_NOTE", "knowledge_id is required")
+                return
+            self._send_json(200, {"items": self.memory.list_knowledge_notes(knowledge_id)})
             return
 
         if parsed.path == "/api/judgements":
