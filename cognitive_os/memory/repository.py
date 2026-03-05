@@ -58,6 +58,13 @@ class MemoryPlane:
                     skill_report TEXT NOT NULL,
                     created_at DATETIME DEFAULT CURRENT_TIMESTAMP
                 );
+                CREATE TABLE IF NOT EXISTS knowledge_bases (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    name TEXT UNIQUE NOT NULL,
+                    domain TEXT NOT NULL,
+                    description TEXT NOT NULL,
+                    created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+                );
                 CREATE TABLE IF NOT EXISTS documents (
                     id INTEGER PRIMARY KEY AUTOINCREMENT,
                     filename TEXT NOT NULL,
@@ -67,11 +74,36 @@ class MemoryPlane:
                     text_length INTEGER NOT NULL,
                     scenario TEXT NOT NULL,
                     message TEXT NOT NULL,
+                    knowledge_base_id INTEGER,
+                    mime_type TEXT NOT NULL DEFAULT '',
+                    file_size_bytes INTEGER NOT NULL DEFAULT 0,
+                    created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+                );
+                CREATE TABLE IF NOT EXISTS model_configs (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    name TEXT UNIQUE NOT NULL,
+                    provider TEXT NOT NULL,
+                    model TEXT NOT NULL,
+                    api_key_masked TEXT NOT NULL,
+                    api_key_secret TEXT NOT NULL,
+                    timeout_sec INTEGER NOT NULL,
+                    context_window INTEGER NOT NULL,
+                    temperature REAL NOT NULL,
+                    is_default INTEGER NOT NULL DEFAULT 0,
+                    status TEXT NOT NULL DEFAULT 'unknown',
+                    created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+                );
+                CREATE TABLE IF NOT EXISTS knowledge_notes (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    knowledge_id TEXT NOT NULL,
+                    note TEXT NOT NULL,
+                    tags TEXT NOT NULL,
                     created_at DATETIME DEFAULT CURRENT_TIMESTAMP
                 );
                 """
             )
 
+    # ----- rules -----
     def save_rules(self, rules: List[Rule]) -> None:
         with self._connect() as conn:
             for rule in rules:
@@ -85,6 +117,104 @@ class MemoryPlane:
             rows = conn.execute("SELECT payload FROM rules ORDER BY id").fetchall()
         return [Rule.from_dict(json.loads(row[0])) for row in rows]
 
+    # ----- KB management -----
+    def create_knowledge_base(self, name: str, domain: str, description: str) -> Dict[str, Any]:
+        with self._connect() as conn:
+            cur = conn.execute(
+                "INSERT INTO knowledge_bases(name, domain, description) VALUES (?, ?, ?)",
+                (name, domain, description),
+            )
+        return {"id": cur.lastrowid, "name": name, "domain": domain, "description": description}
+
+    def list_knowledge_bases(self) -> List[Dict[str, Any]]:
+        with self._connect() as conn:
+            rows = conn.execute(
+                "SELECT id, name, domain, description, created_at FROM knowledge_bases ORDER BY id DESC"
+            ).fetchall()
+        return [
+            {"id": r[0], "name": r[1], "domain": r[2], "description": r[3], "created_at": r[4]}
+            for r in rows
+        ]
+
+    # ----- Model config -----
+    def save_model_config(self, payload: Dict[str, Any]) -> Dict[str, Any]:
+        with self._connect() as conn:
+            if payload.get("is_default"):
+                conn.execute("UPDATE model_configs SET is_default = 0")
+            cur = conn.execute(
+                """
+                INSERT INTO model_configs(name, provider, model, api_key_masked, api_key_secret, timeout_sec, context_window, temperature, is_default, status)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                """,
+                (
+                    payload["name"],
+                    payload["provider"],
+                    payload["model"],
+                    payload["api_key_masked"],
+                    payload["api_key_secret"],
+                    int(payload.get("timeout_sec", 45)),
+                    int(payload.get("context_window", 8192)),
+                    float(payload.get("temperature", 0.2)),
+                    1 if payload.get("is_default") else 0,
+                    payload.get("status", "unknown"),
+                ),
+            )
+        return {"id": cur.lastrowid}
+
+    def set_model_default(self, config_id: int) -> None:
+        with self._connect() as conn:
+            conn.execute("UPDATE model_configs SET is_default = 0")
+            conn.execute("UPDATE model_configs SET is_default = 1 WHERE id = ?", (config_id,))
+
+    def update_model_status(self, config_id: int, status: str) -> None:
+        with self._connect() as conn:
+            conn.execute("UPDATE model_configs SET status = ? WHERE id = ?", (status, config_id))
+
+    def list_model_configs(self) -> List[Dict[str, Any]]:
+        with self._connect() as conn:
+            rows = conn.execute(
+                "SELECT id, name, provider, model, api_key_masked, timeout_sec, context_window, temperature, is_default, status, created_at FROM model_configs ORDER BY id DESC"
+            ).fetchall()
+        return [
+            {
+                "id": r[0],
+                "name": r[1],
+                "provider": r[2],
+                "model": r[3],
+                "api_key_masked": r[4],
+                "timeout_sec": r[5],
+                "context_window": r[6],
+                "temperature": r[7],
+                "is_default": bool(r[8]),
+                "status": r[9],
+                "created_at": r[10],
+            }
+            for r in rows
+        ]
+
+    def get_active_model_config(self) -> Dict[str, Any] | None:
+        with self._connect() as conn:
+            row = conn.execute(
+                "SELECT id, name, provider, model, api_key_secret, timeout_sec, context_window, temperature FROM model_configs WHERE is_default = 1 ORDER BY id DESC LIMIT 1"
+            ).fetchone()
+            if not row:
+                row = conn.execute(
+                    "SELECT id, name, provider, model, api_key_secret, timeout_sec, context_window, temperature FROM model_configs ORDER BY id DESC LIMIT 1"
+                ).fetchone()
+        if not row:
+            return None
+        return {
+            "id": row[0],
+            "name": row[1],
+            "provider": row[2],
+            "model": row[3],
+            "api_key": row[4],
+            "timeout_sec": row[5],
+            "context_window": row[6],
+            "temperature": row[7],
+        }
+
+    # ----- Knowledge and ontology -----
     @staticmethod
     def _payload_hash(payload: Dict[str, Any]) -> str:
         return str(abs(hash(json.dumps(payload, ensure_ascii=False, sort_keys=True))))
@@ -159,6 +289,7 @@ class MemoryPlane:
                     (entity.name, json.dumps(payload, ensure_ascii=False)),
                 )
 
+    # ----- execution records -----
     def write_back(self, knowledge_graph: KnowledgeGraph, judgement: Judgement) -> None:
         self.save_knowledge_units(list(knowledge_graph.knowledge_units.values()))
         self.save_ontology_entities(list(knowledge_graph.entities.values()))
@@ -186,14 +317,8 @@ class MemoryPlane:
                 (limit,),
             ).fetchall()
         return [
-            {
-                "id": row[0],
-                "goal": row[1],
-                "boundary": row[2],
-                "skill_report": json.loads(row[3]),
-                "created_at": row[4],
-            }
-            for row in rows
+            {"id": r[0], "goal": r[1], "boundary": r[2], "skill_report": json.loads(r[3]), "created_at": r[4]}
+            for r in rows
         ]
 
     def load_judgements(self, limit: int = 20) -> List[Dict[str, Any]]:
@@ -202,24 +327,25 @@ class MemoryPlane:
                 "SELECT id, goal, payload, diagnostics, created_at FROM judgements ORDER BY id DESC LIMIT ?",
                 (limit,),
             ).fetchall()
-        result: List[Dict[str, Any]] = []
-        for row in rows:
-            result.append(
-                {
-                    "id": row[0],
-                    "goal": row[1],
-                    "decisions": json.loads(row[2]),
-                    "diagnostics": json.loads(row[3]),
-                    "created_at": row[4],
-                }
-            )
-        return result
+        return [
+            {
+                "id": r[0],
+                "goal": r[1],
+                "decisions": json.loads(r[2]),
+                "diagnostics": json.loads(r[3]),
+                "created_at": r[4],
+            }
+            for r in rows
+        ]
 
-
-    def save_document_record(self, metadata: Dict[str, Any]) -> None:
+    # ----- Documents -----
+    def save_document_record(self, metadata: Dict[str, Any]) -> int:
         with self._connect() as conn:
-            conn.execute(
-                "INSERT INTO documents(filename, format, status, sections, text_length, scenario, message) VALUES (?, ?, ?, ?, ?, ?, ?)",
+            cur = conn.execute(
+                """
+                INSERT INTO documents(filename, format, status, sections, text_length, scenario, message, knowledge_base_id, mime_type, file_size_bytes)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                """,
                 (
                     metadata.get("filename", ""),
                     metadata.get("format", ""),
@@ -228,28 +354,54 @@ class MemoryPlane:
                     int(metadata.get("text_length", 0)),
                     metadata.get("scenario", ""),
                     metadata.get("message", ""),
+                    metadata.get("knowledge_base_id"),
+                    metadata.get("mime_type", ""),
+                    int(metadata.get("file_size_bytes", 0)),
                 ),
             )
+        return int(cur.lastrowid)
 
     def load_documents(self, limit: int = 50) -> List[Dict[str, Any]]:
         with self._connect() as conn:
             rows = conn.execute(
-                "SELECT id, filename, format, status, sections, text_length, scenario, message, created_at FROM documents ORDER BY id DESC LIMIT ?",
+                "SELECT id, filename, format, status, sections, text_length, scenario, message, knowledge_base_id, mime_type, file_size_bytes, created_at FROM documents ORDER BY id DESC LIMIT ?",
                 (limit,),
             ).fetchall()
         return [
             {
-                "id": row[0],
-                "filename": row[1],
-                "format": row[2],
-                "status": row[3],
-                "sections": row[4],
-                "text_length": row[5],
-                "scenario": row[6],
-                "message": row[7],
-                "created_at": row[8],
+                "id": r[0],
+                "filename": r[1],
+                "format": r[2],
+                "status": r[3],
+                "sections": r[4],
+                "text_length": r[5],
+                "scenario": r[6],
+                "message": r[7],
+                "knowledge_base_id": r[8],
+                "mime_type": r[9],
+                "file_size_bytes": r[10],
+                "created_at": r[11],
             }
-            for row in rows
+            for r in rows
+        ]
+
+    # ----- notes -----
+    def add_knowledge_note(self, knowledge_id: str, note: str, tags: List[str]) -> int:
+        with self._connect() as conn:
+            cur = conn.execute(
+                "INSERT INTO knowledge_notes(knowledge_id, note, tags) VALUES (?, ?, ?)",
+                (knowledge_id, note, json.dumps(tags, ensure_ascii=False)),
+            )
+        return int(cur.lastrowid)
+
+    def list_knowledge_notes(self, knowledge_id: str) -> List[Dict[str, Any]]:
+        with self._connect() as conn:
+            rows = conn.execute(
+                "SELECT id, note, tags, created_at FROM knowledge_notes WHERE knowledge_id = ? ORDER BY id DESC",
+                (knowledge_id,),
+            ).fetchall()
+        return [
+            {"id": r[0], "note": r[1], "tags": json.loads(r[2]), "created_at": r[3]} for r in rows
         ]
 
     @staticmethod

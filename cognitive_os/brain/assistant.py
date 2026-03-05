@@ -23,29 +23,31 @@ class PersonalKnowledgeAssistant:
         self.toolkit = toolkit
         self.llm = llm or LLMBrainClient()
 
-    def handle_query(self, user_query: str, scenario: str = "general") -> AssistantResult:
-        retrieved = self.toolkit.retrieve_knowledge(user_query, top_k=8)
-        tool_trace: List[Dict[str, Any]] = [
-            {"tool": "vector_retrieve", "input": user_query, "hits": len(retrieved)}
-        ]
+    def set_llm_client(self, llm: LLMBrainClient) -> None:
+        self.llm = llm
 
-        should_run_cognition = any(k in user_query for k in ["建议", "决策", "下一步", "策略", "回复"]) or scenario == "marketing_customer_service_assistant"
+    def handle_query(self, user_query: str, scenario: str = "general", knowledge_base_id: int | None = None) -> AssistantResult:
+        retrieved = self.toolkit.retrieve_knowledge(user_query, top_k=8, knowledge_base_id=knowledge_base_id)
+        tool_trace: List[Dict[str, Any]] = [{"tool": "vector_retrieve", "input": user_query, "hits": len(retrieved)}]
+
+        should_run_cognition = any(
+            k in user_query for k in ["建议", "决策", "下一步", "策略", "回复", "方案", "总结"]
+        ) or scenario == "marketing_customer_service_assistant"
+
         cognition_result: Dict[str, Any] = {}
         if should_run_cognition:
             cognition_result = self.toolkit.run_cognition(goal=user_query, scenario=scenario)
             tool_trace.append({"tool": "cognition_loop", "decisions": len(cognition_result.get("decisions", []))})
 
         context_block = "\n".join([f"- {x['topic']} | score={x['score']} | {x['text']}" for x in retrieved])
-        decision_block = ""
-        if cognition_result:
-            decision_block = f"\nDecision constraints: {cognition_result.get('decisions', [])}"
+        decision_block = f"\nDecision constraints: {cognition_result.get('decisions', [])}" if cognition_result else ""
 
         messages = [
             {
                 "role": "system",
                 "content": (
                     "你是个人知识服务助手核心大脑。必须优先遵循知识体系创新：语义检索 + 置信度/来源/冲突加权。"
-                    "输出给用户的内容要可执行、可解释、可复核。"
+                    "输出需要包含：结论、依据、风险、下一步行动。"
                 ),
             },
             {
@@ -55,7 +57,7 @@ class PersonalKnowledgeAssistant:
                     f"场景: {scenario}\n"
                     f"知识检索结果:\n{context_block}\n"
                     f"{decision_block}\n"
-                    "请给出：1) 结论 2) 依据 3) 下一步行动清单"
+                    "请输出结构：1) 结论 2) 依据 3) 风险提示 4) 下一步行动清单"
                 ),
             },
         ]
