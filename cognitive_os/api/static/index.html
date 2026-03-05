@@ -1,0 +1,564 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Personal Knowledge OS Studio</title>
+  <style>
+    :root {
+      --bg: #0b1020;
+      --bg-2: #111a33;
+      --panel: rgba(18, 27, 52, 0.82);
+      --panel-2: rgba(21, 33, 65, 0.9);
+      --line: #2d3f77;
+      --txt: #eaf0ff;
+      --muted: #9bb0e7;
+      --accent: #5b8cff;
+      --accent-2: #7aa2ff;
+      --ok: #16c79a;
+      --warn: #f59f0a;
+      --danger: #f05d6b;
+      --shadow: 0 16px 45px rgba(0,0,0,.35);
+      --radius: 14px;
+    }
+
+    * { box-sizing: border-box; }
+    html, body { margin: 0; height: 100%; }
+    body {
+      font-family: Inter, ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial;
+      color: var(--txt);
+      background:
+        radial-gradient(1200px 800px at 85% -5%, #283b73 0%, transparent 50%),
+        radial-gradient(900px 700px at 10% -20%, #21315f 0%, transparent 50%),
+        linear-gradient(140deg, #090d1c 0%, #0b1020 42%, #0c1226 100%);
+      overflow: hidden;
+    }
+
+    .app {
+      display: grid;
+      grid-template-columns: 270px 1fr;
+      height: 100vh;
+      gap: 14px;
+      padding: 14px;
+    }
+
+    .sidebar {
+      background: var(--panel);
+      border: 1px solid var(--line);
+      border-radius: 18px;
+      box-shadow: var(--shadow);
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+      backdrop-filter: blur(10px);
+    }
+
+    .brand {
+      padding: 18px 16px 14px;
+      border-bottom: 1px solid #263968;
+    }
+    .brand h1 {
+      margin: 0;
+      font-size: 18px;
+      letter-spacing: .3px;
+    }
+    .brand p {
+      margin: 8px 0 0;
+      color: var(--muted);
+      font-size: 12px;
+      line-height: 1.4;
+    }
+
+    .menu {
+      padding: 12px;
+      display: grid;
+      gap: 8px;
+      overflow: auto;
+    }
+    .menu button {
+      text-align: left;
+      border: 1px solid transparent;
+      background: #111a33;
+      color: var(--txt);
+      border-radius: 10px;
+      padding: 10px 12px;
+      cursor: pointer;
+      transition: .2s ease;
+      font-weight: 600;
+    }
+    .menu button small {
+      display: block;
+      margin-top: 2px;
+      font-size: 11px;
+      color: var(--muted);
+      font-weight: 500;
+    }
+    .menu button:hover { border-color: #37529c; transform: translateY(-1px); }
+    .menu button.active {
+      border-color: #4c74db;
+      background: linear-gradient(90deg, rgba(65,106,225,.2), rgba(91,140,255,.25));
+    }
+
+    .sidebar-foot {
+      margin-top: auto;
+      border-top: 1px solid #263968;
+      padding: 12px;
+      display: grid;
+      gap: 8px;
+    }
+
+    .content {
+      display: grid;
+      grid-template-rows: auto 1fr;
+      gap: 12px;
+      min-width: 0;
+    }
+
+    .topbar {
+      background: var(--panel);
+      border: 1px solid var(--line);
+      border-radius: 16px;
+      box-shadow: var(--shadow);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      padding: 10px 14px;
+      backdrop-filter: blur(10px);
+    }
+
+    .topbar .left h2 { margin: 0; font-size: 18px; }
+    .topbar .left p { margin: 4px 0 0; color: var(--muted); font-size: 12px; }
+
+    .top-actions {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      flex-wrap: wrap;
+    }
+
+    .input, textarea, select {
+      width: 100%;
+      border: 1px solid #334a86;
+      border-radius: 10px;
+      background: #0f1630;
+      color: var(--txt);
+      padding: 10px;
+      font-size: 13px;
+    }
+    textarea { min-height: 110px; resize: vertical; }
+
+    .btn {
+      border: 1px solid transparent;
+      border-radius: 10px;
+      padding: 9px 12px;
+      font-weight: 600;
+      color: #fff;
+      cursor: pointer;
+      background: linear-gradient(90deg, #436de6, #5b8cff);
+      transition: .18s ease;
+    }
+    .btn:hover { transform: translateY(-1px); }
+    .btn.secondary { background: #1a2a56; border-color: #334f95; }
+    .btn.warn { background: linear-gradient(90deg, #c7811b, #f0a320); }
+    .btn.ghost { background: transparent; border-color: #3b5497; }
+
+    .workspace {
+      background: var(--panel);
+      border: 1px solid var(--line);
+      border-radius: 16px;
+      box-shadow: var(--shadow);
+      padding: 12px;
+      overflow: auto;
+      backdrop-filter: blur(10px);
+    }
+
+    .view { display: none; }
+    .view.active { display: block; }
+
+    .grid { display: grid; grid-template-columns: repeat(12, 1fr); gap: 12px; }
+    .card {
+      grid-column: span 12;
+      background: var(--panel-2);
+      border: 1px solid #2c417a;
+      border-radius: var(--radius);
+      padding: 12px;
+    }
+    .s4 { grid-column: span 4; }
+    .s5 { grid-column: span 5; }
+    .s6 { grid-column: span 6; }
+    .s7 { grid-column: span 7; }
+    .s8 { grid-column: span 8; }
+    .s12 { grid-column: span 12; }
+
+    .card h3 { margin: 0 0 8px; font-size: 15px; }
+    .card p.sub { margin: 0 0 8px; color: var(--muted); font-size: 12px; }
+
+    .row { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 8px; }
+    .row > * { flex: 1; min-width: 120px; }
+
+    .drop {
+      border: 1px dashed #5073c5;
+      background: rgba(54, 84, 156, .16);
+      border-radius: 10px;
+      text-align: center;
+      padding: 18px;
+      color: #bdd1ff;
+      cursor: pointer;
+    }
+    .drop strong { color: #fff; }
+
+    .chat {
+      display: grid;
+      gap: 8px;
+      max-height: 370px;
+      overflow: auto;
+      padding: 4px;
+    }
+    .bubble {
+      border: 1px solid #2f437a;
+      border-radius: 12px;
+      padding: 10px;
+      background: #0f1731;
+      font-size: 13px;
+      line-height: 1.45;
+      white-space: pre-wrap;
+    }
+    .bubble.user {
+      background: #13214a;
+      border-color: #4164c0;
+    }
+
+    .kpis { display: grid; grid-template-columns: repeat(4,1fr); gap: 10px; }
+    .kpi {
+      border: 1px solid #324a86;
+      border-radius: 10px;
+      background: #111c3a;
+      padding: 10px;
+    }
+    .kpi .v { font-size: 22px; font-weight: 700; }
+    .kpi .n { font-size: 11px; color: var(--muted); margin-top: 4px; }
+
+    pre {
+      margin: 0;
+      background: #0a1026;
+      border: 1px solid #2a3768;
+      border-radius: 10px;
+      color: #d7e4ff;
+      padding: 10px;
+      max-height: 270px;
+      overflow: auto;
+      font-size: 12px;
+      line-height: 1.45;
+    }
+
+    .pill {
+      font-size: 11px;
+      border: 1px solid #3756a0;
+      border-radius: 999px;
+      padding: 4px 8px;
+      color: #c8d7ff;
+      background: rgba(83, 121, 216, .12);
+    }
+
+    .toast {
+      position: fixed;
+      right: 18px;
+      bottom: 18px;
+      background: #0f1733;
+      border: 1px solid #3658ad;
+      border-radius: 10px;
+      padding: 10px 12px;
+      z-index: 30;
+    }
+
+    @media (max-width: 1180px) {
+      .app { grid-template-columns: 1fr; overflow: auto; }
+      .sidebar { min-height: auto; }
+      .menu { grid-template-columns: repeat(2, 1fr); }
+    }
+
+    @media (max-width: 960px) {
+      .s4, .s5, .s6, .s7, .s8, .s12 { grid-column: span 12; }
+      .kpis { grid-template-columns: repeat(2, 1fr); }
+    }
+  </style>
+</head>
+<body>
+  <div class="app">
+    <aside class="sidebar">
+      <div class="brand">
+        <h1>Knowledge OS</h1>
+        <p>个人知识服务助手<br>模型驱动 · 向量检索 · 规则约束</p>
+      </div>
+      <div class="menu">
+        <button class="active" data-tab="assistant" onclick="showTab('assistant', this)">智能助手<small>上传文档并对话</small></button>
+        <button data-tab="workbench" onclick="showTab('workbench', this)">工具工作台<small>规则 / 批量知识管理</small></button>
+        <button data-tab="experiments" onclick="showTab('experiments', this)">场景验证<small>9场景三轮迭代</small></button>
+        <button data-tab="telemetry" onclick="showTab('telemetry', this)">运行遥测<small>审计与回放</small></button>
+      </div>
+      <div class="sidebar-foot">
+        <input class="input" id="apiKey" placeholder="X-API-Key (可选)" />
+        <button class="btn secondary" onclick="refreshAll()">刷新全局状态</button>
+      </div>
+    </aside>
+
+    <main class="content">
+      <div class="topbar">
+        <div class="left">
+          <h2 id="viewTitle">智能助手</h2>
+          <p id="viewDesc">上传 DOC/PDF，提出自然语言需求，系统自动检索知识并由模型推理输出。</p>
+        </div>
+        <div class="top-actions">
+          <span class="pill">Model-as-Brain</span>
+          <span class="pill">Vector-Knowledge</span>
+          <span class="pill">Tool-Orchestrated</span>
+        </div>
+      </div>
+
+      <div class="workspace">
+        <!-- Assistant -->
+        <section id="tab-assistant" class="view active">
+          <div class="grid">
+            <div class="card s5">
+              <h3>文档上传（DOC/PDF）</h3>
+              <p class="sub">支持 .pdf .doc .docx，上传后自动解析、分块并进入向量知识库。</p>
+              <div class="drop" onclick="document.getElementById('docFile').click()">
+                <strong>点击选择文档</strong><br/>或拖拽到此区域
+              </div>
+              <input id="docFile" type="file" accept=".pdf,.doc,.docx" style="display:none" />
+              <div class="row">
+                <select id="scenario">
+                  <option value="marketing_customer_service_assistant">营销客服助手（规章制度）</option>
+                  <option value="health_chronic_care_manager">慢病管理</option>
+                  <option value="finance_wealth_advisor">个人理财顾问</option>
+                  <option value="education_exam_coach">考试备考教练</option>
+                </select>
+                <select id="source">
+                  <option value="private">private</option>
+                  <option value="public">public</option>
+                  <option value="human_verified">human_verified</option>
+                </select>
+              </div>
+              <div class="row">
+                <button class="btn" onclick="uploadDoc()">上传并结构化入库</button>
+              </div>
+              <pre id="uploadOut"></pre>
+            </div>
+
+            <div class="card s7">
+              <h3>助手对话（模型自动调度工具）</h3>
+              <p class="sub">输入需求后，系统将自动执行：向量检索 → 决策约束（按需）→ 模型生成结论。</p>
+              <div class="chat" id="chatBox"></div>
+              <textarea id="queryInput">请基于已上传规章文档，生成营销客服标准回复策略与风险提示。</textarea>
+              <div class="row">
+                <button class="btn" onclick="askAssistant()">发送给智能助手</button>
+                <button class="btn ghost" onclick="clearChat()">清空会话</button>
+              </div>
+            </div>
+
+            <div class="card s12">
+              <h3>营销客服助手价值对比</h3>
+              <div class="row">
+                <button class="btn warn" onclick="loadMarketingCase()">加载基准对比</button>
+              </div>
+              <pre id="caseOut"></pre>
+            </div>
+          </div>
+        </section>
+
+        <!-- Workbench -->
+        <section id="tab-workbench" class="view">
+          <div class="grid">
+            <div class="card s6">
+              <h3>规则配置</h3>
+              <textarea id="ruleInput">{"id":"pk_rule_ui","scope":"personal_knowledge","condition":"knowledge_count >= 100","action_constraint":"weekly_digest_generation","priority":7,"applicable_boundary":"global"}</textarea>
+              <div class="row"><button class="btn" onclick="createRule()">保存 Rule</button></div>
+              <pre id="ruleOut"></pre>
+            </div>
+
+            <div class="card s6">
+              <h3>批量知识导入</h3>
+              <textarea id="batchInput">[{"id":"seed_1","knowledge_type":"case","content":{"topic":"policy_lookup","polarity":"pro","summary":"国家广告法要求不得夸大宣传"},"source":"public","confidence":0.7,"valid_boundary":"global"}]</textarea>
+              <div class="row"><button class="btn" onclick="batchKu()">导入 Batch</button></div>
+              <pre id="batchOut"></pre>
+            </div>
+
+            <div class="card s12">
+              <h3>快速执行 Cognition Loop</h3>
+              <textarea id="goalInput">{"goal":"请输出营销客服策略建议","boundary":"global","metadata":{"scenario":"marketing_customer_service_assistant"}}</textarea>
+              <div class="row"><button class="btn" onclick="runCognition()">执行</button></div>
+              <pre id="runOut"></pre>
+            </div>
+          </div>
+        </section>
+
+        <!-- Experiments -->
+        <section id="tab-experiments" class="view">
+          <div class="grid">
+            <div class="card s12">
+              <h3>9 场景三轮迭代验证</h3>
+              <p class="sub">自动执行：数据生成（每场景 >1000）→ 三轮迭代（复盘/优化/泛化）→ 输出量化报告。</p>
+              <div class="row"><button class="btn warn" onclick="runExperiments()">一键运行验证</button></div>
+              <div class="kpis">
+                <div class="kpi"><div class="v" id="kTotal">0</div><div class="n">场景总数</div></div>
+                <div class="kpi"><div class="v" id="kR1">0</div><div class="n">Round1 Useful</div></div>
+                <div class="kpi"><div class="v" id="kR2">0</div><div class="n">Round2 Useful</div></div>
+                <div class="kpi"><div class="v" id="kR3">0</div><div class="n">Round3 Useful</div></div>
+              </div>
+              <pre id="expOut"></pre>
+            </div>
+          </div>
+        </section>
+
+        <!-- Telemetry -->
+        <section id="tab-telemetry" class="view">
+          <div class="grid">
+            <div class="card s4"><h3>Documents</h3><pre id="docsOut"></pre></div>
+            <div class="card s4"><h3>Judgements</h3><pre id="judgeOut"></pre></div>
+            <div class="card s4"><h3>Loop Runs</h3><pre id="loopOut"></pre></div>
+            <div class="card s12"><h3>Latest Summary</h3><pre id="summaryOut"></pre></div>
+          </div>
+        </section>
+      </div>
+    </main>
+  </div>
+
+  <script>
+    const TAB_META = {
+      assistant: ["智能助手", "上传 DOC/PDF，模型自动调用检索和推理能力输出结果。"],
+      workbench: ["工具工作台", "规则与批量知识管理，支持快速执行认知循环。"],
+      experiments: ["场景验证", "9个真实场景三轮迭代，输出可复现量化报告。"],
+      telemetry: ["运行遥测", "文档、决策、循环运行记录的可审计视图。"],
+    };
+
+    const headers = () => {
+      const k = document.getElementById('apiKey').value.trim();
+      const h = { 'Content-Type': 'application/json' };
+      if (k) h['X-API-Key'] = k;
+      return h;
+    };
+
+    const getJson = async (url) => (await fetch(url, { headers: headers() })).json();
+    const postJson = async (url, payload) => (await fetch(url, { method: 'POST', headers: headers(), body: JSON.stringify(payload) })).json();
+
+    function toast(msg) {
+      const el = document.createElement('div');
+      el.className = 'toast';
+      el.textContent = msg;
+      document.body.appendChild(el);
+      setTimeout(() => el.remove(), 1700);
+    }
+
+    function showTab(name, btn = null) {
+      document.querySelectorAll('.menu button').forEach(x => x.classList.toggle('active', x.dataset.tab === name));
+      document.querySelectorAll('.view').forEach(x => x.classList.remove('active'));
+      document.getElementById(`tab-${name}`).classList.add('active');
+      document.getElementById('viewTitle').textContent = TAB_META[name][0];
+      document.getElementById('viewDesc').textContent = TAB_META[name][1];
+    }
+
+    function appendChat(role, content) {
+      const box = document.getElementById('chatBox');
+      const b = document.createElement('div');
+      b.className = `bubble ${role}`;
+      b.textContent = content;
+      box.appendChild(b);
+      box.scrollTop = box.scrollHeight;
+    }
+
+    function clearChat() {
+      document.getElementById('chatBox').innerHTML = '';
+      toast('会话已清空');
+    }
+
+    async function uploadDoc() {
+      const file = document.getElementById('docFile').files[0];
+      if (!file) { toast('请先选择 DOC/PDF 文件'); return; }
+      const scenario = document.getElementById('scenario').value;
+      const source = document.getElementById('source').value;
+      const base64 = await new Promise((resolve, reject) => {
+        const r = new FileReader();
+        r.onload = () => resolve(String(r.result).split(',')[1]);
+        r.onerror = reject;
+        r.readAsDataURL(file);
+      });
+      const data = await postJson('/api/documents/upload', { filename: file.name, content_base64: base64, scenario, source });
+      document.getElementById('uploadOut').textContent = JSON.stringify(data, null, 2);
+      toast(data.status === 'ok' ? '文档入库完成' : '文档处理异常');
+      refreshTelemetry();
+    }
+
+    async function askAssistant() {
+      const query = document.getElementById('queryInput').value.trim();
+      const scenario = document.getElementById('scenario').value;
+      if (!query) { toast('请输入问题'); return; }
+      appendChat('user', query);
+      const data = await postJson('/api/assistant/query', { query, scenario });
+      const answer = data.answer || JSON.stringify(data, null, 2);
+      appendChat('', answer);
+      document.getElementById('uploadOut').textContent = JSON.stringify({ model: data.model, tool_trace: data.tool_trace, retrieved: data.retrieved }, null, 2);
+      refreshTelemetry();
+    }
+
+    async function loadMarketingCase() {
+      const data = await getJson('/api/cases/marketing-assistant');
+      document.getElementById('caseOut').textContent = JSON.stringify(data, null, 2);
+    }
+
+    async function createRule() {
+      const payload = JSON.parse(document.getElementById('ruleInput').value);
+      const data = await postJson('/api/rules', payload);
+      document.getElementById('ruleOut').textContent = JSON.stringify(data, null, 2);
+      toast('Rule 已保存');
+    }
+
+    async function batchKu() {
+      const items = JSON.parse(document.getElementById('batchInput').value);
+      const data = await postJson('/api/knowledge/batch', { items });
+      document.getElementById('batchOut').textContent = JSON.stringify(data, null, 2);
+      toast('批量知识导入完成');
+      refreshTelemetry();
+    }
+
+    async function runCognition() {
+      const payload = JSON.parse(document.getElementById('goalInput').value);
+      const data = await postJson('/cognition/run', payload);
+      document.getElementById('runOut').textContent = JSON.stringify(data, null, 2);
+      toast('Cognition loop 执行完成');
+      refreshTelemetry();
+    }
+
+    async function runExperiments() {
+      const data = await postJson('/api/experiments/run', {});
+      const s = data.summary || {};
+      document.getElementById('expOut').textContent = JSON.stringify(s, null, 2);
+      document.getElementById('kTotal').textContent = s.total_scenarios || 0;
+      document.getElementById('kR1').textContent = s.rounds?.round_1_validation?.useful?.length || 0;
+      document.getElementById('kR2').textContent = s.rounds?.round_2_optimization?.useful?.length || 0;
+      document.getElementById('kR3').textContent = s.rounds?.round_3_generalization?.useful?.length || 0;
+      toast('9场景验证完成');
+      refreshTelemetry();
+    }
+
+    async function refreshTelemetry() {
+      const [d, j, l, s] = await Promise.all([
+        getJson('/api/documents?limit=20'),
+        getJson('/api/judgements?limit=10'),
+        getJson('/api/loop_runs?limit=10'),
+        getJson('/api/reports/summary').catch(() => ({})),
+      ]);
+      document.getElementById('docsOut').textContent = JSON.stringify(d, null, 2);
+      document.getElementById('judgeOut').textContent = JSON.stringify(j, null, 2);
+      document.getElementById('loopOut').textContent = JSON.stringify(l, null, 2);
+      document.getElementById('summaryOut').textContent = JSON.stringify(s, null, 2);
+    }
+
+    function refreshAll() {
+      Promise.all([refreshTelemetry(), loadMarketingCase()]).then(() => toast('已刷新'));
+    }
+
+    refreshAll();
+  </script>
+</body>
+</html>
