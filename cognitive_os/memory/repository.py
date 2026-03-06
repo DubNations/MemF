@@ -192,6 +192,27 @@ class MemoryPlane:
             for r in rows
         ]
 
+    def get_model_config_by_id(self, config_id: int) -> Dict[str, Any] | None:
+        with self._connect() as conn:
+            row = conn.execute(
+                "SELECT id, name, provider, model, api_key_secret, timeout_sec, context_window, temperature, is_default, status FROM model_configs WHERE id = ?",
+                (config_id,),
+            ).fetchone()
+        if not row:
+            return None
+        return {
+            "id": row[0],
+            "name": row[1],
+            "provider": row[2],
+            "model": row[3],
+            "api_key": row[4],
+            "timeout_sec": row[5],
+            "context_window": row[6],
+            "temperature": row[7],
+            "is_default": bool(row[8]),
+            "status": row[9],
+        }
+
     def get_active_model_config(self) -> Dict[str, Any] | None:
         with self._connect() as conn:
             row = conn.execute(

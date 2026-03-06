@@ -263,9 +263,35 @@ function renderTable(id, headers, rows) {
   table.innerHTML = head + body;
 }
 
+async function setDefaultModel(id) {
+  await api('/api/model-configs/set-default', { method: 'POST', body: JSON.stringify({ id }) });
+  await loadModels();
+}
+
+async function testModel(id) {
+  const ret = await api('/api/model-configs/test', { method: 'POST', body: JSON.stringify({ id }) });
+  setStatus('modelStatus', `模型检测完成：${ret.online ? 'online' : 'offline'}`, ret.online);
+  await loadModels();
+}
+
 async function loadModels() {
   const data = await api('/api/model-configs');
-  renderTable('modelTable', ['ID', '名称', '模型', '状态', '默认'], data.items.map(x => [x.id, x.name, x.model, x.status, x.is_default ? '是' : '否']));
+  const headers = ['ID', '名称', '模型', '状态', '默认', '操作'];
+  const rows = data.items.length
+    ? data.items.map(x => `
+      <tr>
+        <td>${x.id}</td>
+        <td>${x.name}</td>
+        <td>${x.model}</td>
+        <td>${x.status}</td>
+        <td>${x.is_default ? '是' : '否'}</td>
+        <td>
+          <button class="btn secondary" style="padding:4px 8px;font-size:12px" onclick="setDefaultModel(${x.id})">设默认</button>
+          <button class="btn secondary" style="padding:4px 8px;font-size:12px" onclick="testModel(${x.id})">连通性测试</button>
+        </td>
+      </tr>`).join('')
+    : `<tr><td colspan="6" class="muted">暂无数据</td></tr>`;
+  modelTable.innerHTML = `<tr>${headers.map(h => `<th>${h}</th>`).join('')}</tr>${rows}`;
   const active = data.items.find(x => x.is_default) || data.items[0];
   document.getElementById('activeModelTip').textContent = `当前模型：${active ? active.model : 'local-fallback'}`;
 }

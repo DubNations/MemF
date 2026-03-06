@@ -217,16 +217,10 @@ class _Handler(BaseHTTPRequestHandler):
 
         if self.path == "/api/model-configs/test":
             config_id = int(payload.get("id", 0))
-            configs = self.memory.list_model_configs()
-            target = next((x for x in configs if x["id"] == config_id), None)
-            if not target:
+            full = self.memory.get_model_config_by_id(config_id)
+            if not full:
                 self._error(404, "NOT_FOUND", "config not found")
                 return
-            full = self.memory.get_active_model_config() if target.get("is_default") else None
-            if not full:
-                # quick load by set default temporarily
-                self.memory.set_model_default(config_id)
-                full = self.memory.get_active_model_config()
             llm = LLMBrainClient(
                 model=full["model"],
                 api_key=full["api_key"],
