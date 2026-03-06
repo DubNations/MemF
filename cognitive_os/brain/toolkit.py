@@ -34,10 +34,23 @@ class BrainToolkit:
         if mime_type and mime_type not in self.ALLOWED_MIME:
             return {"ok": False, "code": "INVALID_MIME", "message": f"Unsupported mime_type: {mime_type}"}
 
+        normalized = (content_base64 or "").strip()
+        if "," in normalized and "base64" in normalized[:80].lower():
+            normalized = normalized.split(",", 1)[1]
+        normalized = "".join(normalized.split())
+        if len(normalized) % 4:
+            normalized += "=" * (4 - len(normalized) % 4)
+
+        content: bytes
         try:
-            content = base64.b64decode(content_base64, validate=True)
+            content = base64.b64decode(normalized, validate=True)
         except Exception:
-            return {"ok": False, "code": "INVALID_BASE64", "message": "Content is not valid base64"}
+            if not re.fullmatch(r"[A-Za-z0-9_\-]+=*", normalized):
+                return {"ok": False, "code": "INVALID_BASE64", "message": "Content is not valid base64"}
+            try:
+                content = base64.urlsafe_b64decode(normalized)
+            except Exception:
+                return {"ok": False, "code": "INVALID_BASE64", "message": "Content is not valid base64"}
 
         if len(content) > self.MAX_UPLOAD_BYTES:
             return {
@@ -45,7 +58,8 @@ class BrainToolkit:
                 "code": "FILE_TOO_LARGE",
                 "message": f"File size exceeds 150MB limit: {len(content)} bytes",
             }
-        return {"ok": True, "content": content, "size": len(content)}
+        canonical_b64 = base64.b64encode(content).decode("ascii")
+        return {"ok": True, "content": content, "size": len(content), "normalized_base64": canonical_b64}
 
     def upload_document(
         self,
@@ -73,7 +87,7 @@ class BrainToolkit:
             self.memory.save_document_record(metadata)
             return {"status": "FAILED", "metadata": metadata, "ingested": 0, "error": check}
 
-        parse_result, text = DocumentPipeline.parse_base64_document(filename, content_base64)
+        parse_result, text = DocumentPipeline.parse_base64_document(filename, check["normalized_base64"])
         metadata = DocumentPipeline.map_document_metadata(parse_result, scenario)
         metadata["knowledge_base_id"] = knowledge_base_id
         metadata["mime_type"] = mime_type
@@ -141,6 +155,14 @@ class BrainToolkit:
             }
             for h in reranked
         ]
+
+    def update_document(self, document_id: int, scenario: str | None = None, message: str | None = None) -> bool:
+        return self.memory.update_document_record(document_id=document_id, scenario=scenario, message=message)
+
+    def delete_document(self, document_id: int) -> Dict[str, Any]:
+        deleted = self.memory.delete_document_record(document_id)
+        removed_vectors = self.vector_db.delete_by_document_id(document_id)
+        return {"deleted": deleted, "removed_vectors": removed_vectors}
 
     def load_telemetry(self) -> Dict[str, Any]:
         return {

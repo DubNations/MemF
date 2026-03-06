@@ -60,6 +60,11 @@
       cursor: pointer;
     }
     .nav button.active { background: #eef2ff; border-color: #dce4ff; color: #2f49b8; }
+    .rules-panel { margin: 10px; padding: 10px; border: 1px solid var(--line); border-radius: 10px; background: #f9fbff; }
+    .rule-bar { height: 8px; border-radius: 99px; background: #e7eeff; overflow: hidden; margin-top: 6px; }
+    .rule-bar > span { display:block; height:100%; background: linear-gradient(90deg, #5d7bf8, #7b96ff); }
+    .rule-row { margin-bottom: 8px; font-size: 12px; color: var(--muted); }
+
 
     .center { display: grid; grid-template-rows: auto 1fr; gap: 12px; }
     .topbar {
@@ -144,6 +149,11 @@
       <button data-view="modelView">模型配置</button>
       <button data-view="kbView">知识管理</button>
       <button data-view="telemetryView">运行遥测</button>
+    </div>
+    <div class="rules-panel">
+      <div style="font-weight:700;font-size:13px;margin-bottom:6px;">知识规则可视化</div>
+      <div class="muted" id="ruleStats">规则加载中...</div>
+      <div id="ruleBars"></div>
     </div>
   </aside>
 
@@ -230,6 +240,11 @@
       <textarea id="chatInput" placeholder="输入问题，例如：请基于当前知识库给我下一步行动建议"></textarea>
       <button class="btn" id="sendBtn">发送</button>
     </div>
+    <div class="rules-panel">
+      <div style="font-weight:700;font-size:13px;margin-bottom:6px;">知识规则可视化</div>
+      <div class="muted" id="ruleStats">规则加载中...</div>
+      <div id="ruleBars"></div>
+    </div>
   </aside>
 </div>
 
@@ -274,6 +289,32 @@ async function testModel(id) {
   await loadModels();
 }
 
+async function loadRuleWeights() {
+  const data = await api('/api/rules/weights');
+  const stats = data.stats || { count: 0, avg_priority: 0, by_scope: {} };
+  document.getElementById('ruleStats').textContent = `总规则: ${stats.count} | 平均优先级: ${stats.avg_priority}`;
+  const entries = Object.entries(stats.by_scope || {});
+  const maxv = Math.max(1, ...entries.map(([, v]) => Number(v)));
+  document.getElementById('ruleBars').innerHTML = entries.length
+    ? entries.map(([k, v]) => `<div class="rule-row">${k}: ${v}<div class="rule-bar"><span style="width:${Math.round((Number(v)/maxv)*100)}%"></span></div></div>`).join('')
+    : '<div class="muted">暂无规则数据</div>';
+}
+
+async function updateDoc(id) {
+  const scenario = prompt('新的场景值（留空不改）');
+  const message = prompt('备注/消息（留空不改）');
+  await api('/api/documents/update', { method: 'POST', body: JSON.stringify({ id, scenario: scenario || undefined, message: message || undefined }) });
+  setStatus('uploadStatus', `文档 ${id} 已更新`);
+  await loadDocs();
+}
+
+async function deleteDoc(id) {
+  if (!confirm(`确认删除文档 ${id} ?`)) return;
+  const ret = await api('/api/documents/delete', { method: 'POST', body: JSON.stringify({ id }) });
+  setStatus('uploadStatus', `文档 ${id} 已删除，移除向量 ${ret.removed_vectors || 0}`);
+  await loadDocs();
+}
+
 async function loadModels() {
   const data = await api('/api/model-configs');
   const headers = ['ID', '名称', '模型', '状态', '默认', '操作'];
@@ -307,7 +348,23 @@ async function loadKBs() {
 
 async function loadDocs() {
   const data = await api('/api/documents?limit=20');
-  renderTable('docTable', ['ID', '文件名', '状态', '格式', '大小(bytes)', '时间'], data.items.map(x => [x.id, x.filename, x.status, x.format, x.file_size_bytes || 0, x.created_at]));
+  const headers = ['ID', '文件名', '状态', '格式', '大小(bytes)', '时间', '操作'];
+  const rows = data.items.length
+    ? data.items.map(x => `
+      <tr>
+        <td>${x.id}</td>
+        <td>${x.filename}</td>
+        <td>${x.status}</td>
+        <td>${x.format}</td>
+        <td>${x.file_size_bytes || 0}</td>
+        <td>${x.created_at}</td>
+        <td>
+          <button class="btn secondary" style="padding:4px 8px;font-size:12px" onclick="updateDoc(${x.id})">修改</button>
+          <button class="btn warn" style="padding:4px 8px;font-size:12px" onclick="deleteDoc(${x.id})">删除</button>
+        </td>
+      </tr>`).join('')
+    : `<tr><td colspan="7" class="muted">暂无数据</td></tr>`;
+  docTable.innerHTML = `<tr>${headers.map(h => `<th>${h}</th>`).join('')}</tr>${rows}`;
   document.getElementById('kDoc').textContent = String(data.items.length);
 }
 
@@ -365,6 +422,11 @@ dropZone.ondrop = (e) => {
 };
 
 async function handleUpload(file) {
+  if (!file) return;
+  if (file.size > 150 * 1024 * 1024) {
+    setStatus('uploadStatus', '上传失败：文件超过 150MB 限制', false);
+    return;
+  }
   try {
     const base64 = await new Promise((resolve, reject) => {
       const fr = new FileReader();
@@ -373,16 +435,20 @@ async function handleUpload(file) {
       fr.readAsDataURL(file);
     });
     const kb = uploadKbSelect.value ? Number(uploadKbSelect.value) : null;
-    const ret = await api('/api/documents/upload', {
-      method: 'POST',
-      body: JSON.stringify({
-        filename: file.name,
-        content_base64: base64,
-        mime_type: file.type || 'application/octet-stream',
-        scenario: scenarioInput.value || 'general',
-        knowledge_base_id: kb,
-      })
+    const body = JSON.stringify({
+      filename: file.name,
+      content_base64: base64,
+      mime_type: file.type || 'application/octet-stream',
+      scenario: scenarioInput.value || 'general',
+      knowledge_base_id: kb,
     });
+    let ret;
+    try {
+      ret = await api('/api/documents/upload', { method: 'POST', body });
+    } catch (e) {
+      // one retry for unstable local network/proxy
+      ret = await api('/api/documents/upload', { method: 'POST', body });
+    }
     setStatus('uploadStatus', `上传成功，入库 ${ret.ingested}，跳过 ${ret.skipped || 0}`);
     await loadDocs();
   } catch (e) { setStatus('uploadStatus', `上传失败：${e.message}`, false); }
@@ -406,7 +472,7 @@ document.getElementById('sendBtn').onclick = async () => {
 document.getElementById('reloadAllBtn').onclick = async () => { await bootstrap(); };
 
 async function bootstrap() {
-  await Promise.all([loadModels(), loadKBs(), loadDocs(), loadTelemetry()]);
+  await Promise.all([loadModels(), loadKBs(), loadDocs(), loadTelemetry(), loadRuleWeights()]);
 }
 bootstrap().catch(err => addBubble(`初始化失败：${err.message}`));
 </script>

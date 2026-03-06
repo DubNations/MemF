@@ -29,3 +29,14 @@ def test_validate_upload_rejects_bad_base64(tmp_path: Path):
     ret = toolkit.validate_upload("demo.pdf", "application/pdf", "bad###")
     assert ret["ok"] is False
     assert ret["code"] == "INVALID_BASE64"
+
+
+def test_validate_upload_accepts_data_url_and_whitespace(tmp_path: Path):
+    toolkit = _toolkit(tmp_path)
+    raw = b"hello-pdf"
+    b64 = base64.b64encode(raw).decode("ascii")
+    data_url = f"data:application/pdf;base64,{b64}\n"
+    ret = toolkit.validate_upload("demo.pdf", "application/pdf", data_url)
+    assert ret["ok"] is True
+    assert ret["size"] == len(raw)
+    assert ret["normalized_base64"] == b64

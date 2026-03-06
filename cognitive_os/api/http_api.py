@@ -113,6 +113,18 @@ class _Handler(BaseHTTPRequestHandler):
             self._send_json(200, {"items": [asdict(x) for x in self.memory.load_rules()]})
             return
 
+        if parsed.path == "/api/rules/weights":
+            rules = [asdict(x) for x in self.memory.load_rules()]
+            by_scope: dict[str, int] = {}
+            total_priority = 0
+            for r in rules:
+                scope = str(r.get("scope", "global"))
+                by_scope[scope] = by_scope.get(scope, 0) + 1
+                total_priority += int(r.get("priority", 0) or 0)
+            avg_priority = round(total_priority / len(rules), 2) if rules else 0
+            self._send_json(200, {"items": rules, "stats": {"count": len(rules), "avg_priority": avg_priority, "by_scope": by_scope}})
+            return
+
         if parsed.path == "/api/knowledge":
             self._send_json(200, {"items": [asdict(x) for x in self.memory.load_knowledge_units()]})
             return
@@ -314,6 +326,34 @@ class _Handler(BaseHTTPRequestHandler):
                 self._error(400, "DOCUMENT_PARSE_FAILED", "Document parse failed", result.get("error", {}).get("message", ""))
                 return
             self._send_json(201, {"status": "ok", **result})
+            return
+
+        if self.path == "/api/documents/update":
+            doc_id = int(payload.get("id", 0))
+            if doc_id <= 0:
+                self._error(400, "INVALID_DOCUMENT", "id is required")
+                return
+            ok = self.toolkit.update_document(
+                document_id=doc_id,
+                scenario=payload.get("scenario"),
+                message=payload.get("message"),
+            )
+            if not ok:
+                self._error(404, "NOT_FOUND", "document not found")
+                return
+            self._send_json(200, {"status": "ok", "id": doc_id})
+            return
+
+        if self.path == "/api/documents/delete":
+            doc_id = int(payload.get("id", 0))
+            if doc_id <= 0:
+                self._error(400, "INVALID_DOCUMENT", "id is required")
+                return
+            result = self.toolkit.delete_document(doc_id)
+            if not result.get("deleted"):
+                self._error(404, "NOT_FOUND", "document not found")
+                return
+            self._send_json(200, {"status": "ok", "id": doc_id, "removed_vectors": result.get("removed_vectors", 0)})
             return
 
         if self.path == "/api/assistant/query":

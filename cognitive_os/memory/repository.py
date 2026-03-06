@@ -430,6 +430,28 @@ class MemoryPlane:
             for r in rows
         ]
 
+
+    def update_document_record(self, document_id: int, scenario: str | None = None, message: str | None = None) -> bool:
+        updates = []
+        args: list[Any] = []
+        if scenario is not None:
+            updates.append("scenario = ?")
+            args.append(scenario)
+        if message is not None:
+            updates.append("message = ?")
+            args.append(message)
+        if not updates:
+            return False
+        args.append(document_id)
+        with self._connect() as conn:
+            cur = conn.execute(f"UPDATE documents SET {', '.join(updates)} WHERE id = ?", tuple(args))
+        return int(cur.rowcount) > 0
+
+    def delete_document_record(self, document_id: int) -> bool:
+        with self._connect() as conn:
+            cur = conn.execute("DELETE FROM documents WHERE id = ?", (document_id,))
+        return int(cur.rowcount) > 0
+
     # ----- notes -----
     def add_knowledge_note(self, knowledge_id: str, note: str, tags: List[str]) -> int:
         with self._connect() as conn:

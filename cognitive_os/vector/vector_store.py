@@ -66,6 +66,26 @@ class LocalVectorDB:
                 (item_id, text, json.dumps(emb), json.dumps(metadata, ensure_ascii=False)),
             )
 
+
+    def delete(self, item_id: str) -> int:
+        with self._connect() as conn:
+            cur = conn.execute(f"DELETE FROM {self.table} WHERE id = ?", (item_id,))
+        return int(cur.rowcount)
+
+    def delete_by_document_id(self, document_id: int) -> int:
+        removed = 0
+        with self._connect() as conn:
+            rows = conn.execute(f"SELECT id, metadata FROM {self.table}").fetchall()
+            for row in rows:
+                try:
+                    meta = json.loads(row[1])
+                except Exception:
+                    continue
+                if int(meta.get("document_id") or 0) == int(document_id):
+                    conn.execute(f"DELETE FROM {self.table} WHERE id = ?", (row[0],))
+                    removed += 1
+        return removed
+
     def search(self, query: str, top_k: int = 8) -> List[VectorHit]:
         q = self.embedder.embed(query)
         hits: List[VectorHit] = []
