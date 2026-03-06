@@ -102,6 +102,30 @@ class MemoryPlane:
                 );
                 """
             )
+            self._migrate_schema(conn)
+
+    @staticmethod
+    def _table_columns(conn: sqlite3.Connection, table: str) -> set[str]:
+        rows = conn.execute(f"PRAGMA table_info({table})").fetchall()
+        return {r[1] for r in rows}
+
+    def _migrate_schema(self, conn: sqlite3.Connection) -> None:
+        """Backfill columns for existing local databases created by older versions."""
+        migrations: Dict[str, Dict[str, str]] = {
+            "documents": {
+                "knowledge_base_id": "INTEGER",
+                "mime_type": "TEXT NOT NULL DEFAULT ''",
+                "file_size_bytes": "INTEGER NOT NULL DEFAULT 0",
+            },
+            "model_configs": {
+                "status": "TEXT NOT NULL DEFAULT 'unknown'",
+            },
+        }
+        for table, columns in migrations.items():
+            existing = self._table_columns(conn, table)
+            for col, ddl in columns.items():
+                if col not in existing:
+                    conn.execute(f"ALTER TABLE {table} ADD COLUMN {col} {ddl}")
 
     # ----- rules -----
     def save_rules(self, rules: List[Rule]) -> None:
