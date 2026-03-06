@@ -1,0 +1,475 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Cognitive OS · Personal Knowledge</title>
+  <style>
+    :root {
+      --bg: #f4f6fb;
+      --panel: #ffffff;
+      --panel-soft: #f8faff;
+      --line: #e5eaf5;
+      --text: #172033;
+      --muted: #5f6b85;
+      --primary: #4f6ef7;
+      --primary-2: #6f8aff;
+      --success: #1fa971;
+      --danger: #d23f57;
+      --radius: 14px;
+      --shadow: 0 8px 24px rgba(20, 44, 120, 0.08);
+    }
+    * { box-sizing: border-box; }
+    html, body { height: 100%; margin: 0; }
+    body {
+      font-family: Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      color: var(--text);
+      background: var(--bg);
+    }
+    .app {
+      height: 100vh;
+      display: grid;
+      grid-template-columns: 240px 1fr 420px;
+      gap: 14px;
+      padding: 14px;
+    }
+    .panel {
+      background: var(--panel);
+      border: 1px solid var(--line);
+      border-radius: var(--radius);
+      box-shadow: var(--shadow);
+      min-height: 0;
+    }
+    .left {
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+    }
+    .brand { padding: 18px; border-bottom: 1px solid var(--line); }
+    .brand h1 { margin: 0; font-size: 17px; }
+    .brand p { margin: 6px 0 0; color: var(--muted); font-size: 12px; }
+    .nav { padding: 10px; display: grid; gap: 8px; overflow: auto; }
+    .nav button {
+      border: 1px solid transparent;
+      border-radius: 10px;
+      padding: 10px 12px;
+      text-align: left;
+      font-weight: 600;
+      color: var(--text);
+      background: transparent;
+      cursor: pointer;
+    }
+    .nav button.active { background: #eef2ff; border-color: #dce4ff; color: #2f49b8; }
+    .rules-panel { margin: 10px; padding: 10px; border: 1px solid var(--line); border-radius: 10px; background: #f9fbff; }
+    .rule-bar { height: 8px; border-radius: 99px; background: #e7eeff; overflow: hidden; margin-top: 6px; }
+    .rule-bar > span { display:block; height:100%; background: linear-gradient(90deg, #5d7bf8, #7b96ff); }
+    .rule-row { margin-bottom: 8px; font-size: 12px; color: var(--muted); }
+
+
+    .center { display: grid; grid-template-rows: auto 1fr; gap: 12px; }
+    .topbar {
+      padding: 12px 14px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 8px;
+    }
+    .topbar h2 { margin: 0; font-size: 18px; }
+    .topbar p { margin: 4px 0 0; color: var(--muted); font-size: 12px; }
+    .workspace { padding: 12px; overflow: auto; }
+    .view { display: none; }
+    .view.active { display: block; }
+
+    .card { border: 1px solid var(--line); border-radius: 12px; padding: 12px; background: var(--panel-soft); margin-bottom: 10px; }
+    .card h3 { margin: 0 0 8px; font-size: 15px; }
+    .grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+    .field { margin-bottom: 8px; }
+    label { display: block; font-size: 12px; color: var(--muted); margin-bottom: 4px; }
+    input, textarea, select {
+      width: 100%;
+      border: 1px solid #d9e1f4;
+      border-radius: 10px;
+      padding: 10px;
+      font-size: 13px;
+      background: #fff;
+      color: var(--text);
+    }
+    textarea { min-height: 86px; resize: vertical; }
+    .row { display: flex; gap: 8px; flex-wrap: wrap; }
+    .btn {
+      border: 1px solid transparent;
+      border-radius: 10px;
+      padding: 9px 12px;
+      font-weight: 600;
+      cursor: pointer;
+      background: linear-gradient(90deg, var(--primary), var(--primary-2));
+      color: #fff;
+    }
+    .btn.secondary { background: #e9efff; color: #2e46ad; border-color: #d7e1ff; }
+    .btn.warn { background: #fff2f2; color: #ad3247; border-color: #ffd8de; }
+
+    .table { width: 100%; border-collapse: collapse; font-size: 12px; }
+    .table th, .table td { border-bottom: 1px solid var(--line); text-align: left; padding: 8px 6px; }
+    .muted { color: var(--muted); font-size: 12px; }
+
+    .right { display: grid; grid-template-rows: auto 1fr auto; }
+    .chat-head { padding: 12px 14px; border-bottom: 1px solid var(--line); }
+    .chat-head h3 { margin: 0; font-size: 16px; }
+    .chat-list { padding: 12px; overflow: auto; display: grid; gap: 8px; }
+    .bubble { border-radius: 12px; padding: 10px; font-size: 13px; line-height: 1.45; white-space: pre-wrap; border: 1px solid var(--line); background: #fff; }
+    .bubble.user { background: #eef3ff; border-color: #d9e5ff; }
+    .chat-input { border-top: 1px solid var(--line); padding: 10px; display: grid; gap: 8px; }
+    .kpi-wrap { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin-top: 8px; }
+    .kpi { border: 1px solid var(--line); border-radius: 10px; background: #fff; padding: 8px; }
+    .kpi .v { font-weight: 700; font-size: 18px; }
+    .drop {
+      border: 1px dashed #a7b8ec;
+      border-radius: 10px;
+      padding: 14px;
+      text-align: center;
+      font-size: 13px;
+      color: var(--muted);
+      background: #f7f9ff;
+      cursor: pointer;
+    }
+    .status { margin-top: 6px; font-size: 12px; }
+    .ok { color: var(--success); }
+    .err { color: var(--danger); }
+  </style>
+</head>
+<body>
+<div class="app">
+  <aside class="panel left">
+    <div class="brand">
+      <h1>Copaw-Style Console</h1>
+      <p>Open Notebook 风格：左导航 / 中操作 / 右对话</p>
+    </div>
+    <div class="nav">
+      <button class="active" data-view="uploadView">文档上传</button>
+      <button data-view="modelView">模型配置</button>
+      <button data-view="kbView">知识管理</button>
+      <button data-view="telemetryView">运行遥测</button>
+    </div>
+    <div class="rules-panel">
+      <div style="font-weight:700;font-size:13px;margin-bottom:6px;">知识规则可视化</div>
+      <div class="muted" id="ruleStats">规则加载中...</div>
+      <div id="ruleBars"></div>
+    </div>
+  </aside>
+
+  <main class="center">
+    <div class="panel topbar">
+      <div>
+        <h2>Personal Knowledge Assistant</h2>
+        <p id="activeModelTip">当前模型：local-fallback</p>
+      </div>
+      <button class="btn secondary" id="reloadAllBtn">刷新数据</button>
+    </div>
+    <div class="panel workspace">
+      <section class="view active" id="uploadView">
+        <div class="card">
+          <h3>上传文档（DOC / DOCX / PDF）</h3>
+          <div class="grid2">
+            <div class="field"><label>场景</label><input id="scenarioInput" value="general"/></div>
+            <div class="field"><label>知识库</label><select id="uploadKbSelect"></select></div>
+          </div>
+          <div class="drop" id="dropZone">拖拽或点击选择文件</div>
+          <input id="fileInput" type="file" accept=".pdf,.doc,.docx" style="display:none"/>
+          <div class="status" id="uploadStatus"></div>
+        </div>
+        <div class="card">
+          <h3>最近文档</h3>
+          <table class="table" id="docTable"></table>
+        </div>
+      </section>
+
+      <section class="view" id="modelView">
+        <div class="card">
+          <h3>新增模型服务配置</h3>
+          <div class="grid2">
+            <div class="field"><label>配置名</label><input id="mcName" value="default"/></div>
+            <div class="field"><label>模型</label><input id="mcModel" value="Pro/deepseek-ai/DeepSeek-V3.2"/></div>
+          </div>
+          <div class="field"><label>API Key</label><input id="mcKey" type="password"/></div>
+          <div class="row">
+            <button class="btn" id="createModelBtn">保存配置</button>
+          </div>
+          <div class="status" id="modelStatus"></div>
+        </div>
+        <div class="card">
+          <h3>模型列表</h3>
+          <table class="table" id="modelTable"></table>
+        </div>
+      </section>
+
+      <section class="view" id="kbView">
+        <div class="card">
+          <h3>创建知识库</h3>
+          <div class="grid2">
+            <div class="field"><label>名称</label><input id="kbName"/></div>
+            <div class="field"><label>领域</label><input id="kbDomain" value="general"/></div>
+          </div>
+          <div class="field"><label>描述</label><textarea id="kbDesc"></textarea></div>
+          <button class="btn" id="createKbBtn">创建</button>
+          <div class="status" id="kbStatus"></div>
+        </div>
+        <div class="card">
+          <h3>知识库列表</h3>
+          <table class="table" id="kbTable"></table>
+        </div>
+      </section>
+
+      <section class="view" id="telemetryView">
+        <div class="card">
+          <h3>运行概览</h3>
+          <div class="kpi-wrap">
+            <div class="kpi"><div class="v" id="kDoc">0</div><div class="muted">文档数</div></div>
+            <div class="kpi"><div class="v" id="kJudgement">0</div><div class="muted">Judgements</div></div>
+            <div class="kpi"><div class="v" id="kLoop">0</div><div class="muted">Loop Runs</div></div>
+          </div>
+        </div>
+      </section>
+    </div>
+  </main>
+
+  <aside class="panel right">
+    <div class="chat-head"><h3>对话助手</h3></div>
+    <div class="chat-list" id="chatList"></div>
+    <div class="chat-input">
+      <select id="chatKbSelect"></select>
+      <textarea id="chatInput" placeholder="输入问题，例如：请基于当前知识库给我下一步行动建议"></textarea>
+      <button class="btn" id="sendBtn">发送</button>
+    </div>
+  </aside>
+</div>
+
+<script>
+const state = { kbs: [] };
+
+const api = async (url, options = {}) => {
+  const res = await fetch(url, { headers: { 'Content-Type': 'application/json' }, ...options });
+  const json = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error(json.message || json.details || `HTTP ${res.status}`);
+  return json;
+};
+
+function setStatus(id, text, ok = true) {
+  const el = document.getElementById(id);
+  el.className = `status ${ok ? 'ok' : 'err'}`;
+  el.textContent = text;
+}
+
+function switchView(id) {
+  document.querySelectorAll('.nav button').forEach(b => b.classList.toggle('active', b.dataset.view === id));
+  document.querySelectorAll('.view').forEach(v => v.classList.toggle('active', v.id === id));
+}
+
+document.querySelectorAll('.nav button').forEach(btn => btn.addEventListener('click', () => switchView(btn.dataset.view)));
+
+function renderTable(id, headers, rows) {
+  const table = document.getElementById(id);
+  const head = `<tr>${headers.map(h => `<th>${h}</th>`).join('')}</tr>`;
+  const body = rows.length ? rows.map(r => `<tr>${r.map(c => `<td>${c ?? ''}</td>`).join('')}</tr>`).join('') : `<tr><td colspan="${headers.length}" class="muted">暂无数据</td></tr>`;
+  table.innerHTML = head + body;
+}
+
+async function setDefaultModel(id) {
+  await api('/api/model-configs/set-default', { method: 'POST', body: JSON.stringify({ id }) });
+  await loadModels();
+}
+
+async function testModel(id) {
+  const ret = await api('/api/model-configs/test', { method: 'POST', body: JSON.stringify({ id }) });
+  setStatus('modelStatus', `模型检测完成：${ret.online ? 'online' : 'offline'}`, ret.online);
+  await loadModels();
+}
+
+async function loadRuleWeights() {
+  const data = await api('/api/rules/weights');
+  const stats = data.stats || { count: 0, avg_priority: 0, by_scope: {} };
+  document.getElementById('ruleStats').textContent = `总规则: ${stats.count} | 平均优先级: ${stats.avg_priority}`;
+  const entries = Object.entries(stats.by_scope || {});
+  const maxv = Math.max(1, ...entries.map(([, v]) => Number(v)));
+  document.getElementById('ruleBars').innerHTML = entries.length
+    ? entries.map(([k, v]) => `<div class="rule-row">${k}: ${v}<div class="rule-bar"><span style="width:${Math.round((Number(v)/maxv)*100)}%"></span></div></div>`).join('')
+    : '<div class="muted">暂无规则数据</div>';
+}
+
+async function updateDoc(id) {
+  const scenario = prompt('新的场景值（留空不改）');
+  const message = prompt('备注/消息（留空不改）');
+  await api('/api/documents/update', { method: 'POST', body: JSON.stringify({ id, scenario: scenario || undefined, message: message || undefined }) });
+  setStatus('uploadStatus', `文档 ${id} 已更新`);
+  await loadDocs();
+}
+
+async function deleteDoc(id) {
+  if (!confirm(`确认删除文档 ${id} ?`)) return;
+  const ret = await api('/api/documents/delete', { method: 'POST', body: JSON.stringify({ id }) });
+  setStatus('uploadStatus', `文档 ${id} 已删除，移除向量 ${ret.removed_vectors || 0}`);
+  await loadDocs();
+}
+
+async function loadModels() {
+  const data = await api('/api/model-configs');
+  const headers = ['ID', '名称', '模型', '状态', '默认', '操作'];
+  const rows = data.items.length
+    ? data.items.map(x => `
+      <tr>
+        <td>${x.id}</td>
+        <td>${x.name}</td>
+        <td>${x.model}</td>
+        <td>${x.status}</td>
+        <td>${x.is_default ? '是' : '否'}</td>
+        <td>
+          <button class="btn secondary" style="padding:4px 8px;font-size:12px" onclick="setDefaultModel(${x.id})">设默认</button>
+          <button class="btn secondary" style="padding:4px 8px;font-size:12px" onclick="testModel(${x.id})">连通性测试</button>
+        </td>
+      </tr>`).join('')
+    : `<tr><td colspan="6" class="muted">暂无数据</td></tr>`;
+  modelTable.innerHTML = `<tr>${headers.map(h => `<th>${h}</th>`).join('')}</tr>${rows}`;
+  const active = data.items.find(x => x.is_default) || data.items[0];
+  document.getElementById('activeModelTip').textContent = `当前模型：${active ? active.model : 'local-fallback'}`;
+}
+
+async function loadKBs() {
+  const data = await api('/api/knowledge-bases');
+  state.kbs = data.items;
+  renderTable('kbTable', ['ID', '名称', '领域', '描述'], data.items.map(x => [x.id, x.name, x.domain, x.description]));
+  const options = ['<option value="">全部知识库</option>'].concat(data.items.map(x => `<option value="${x.id}">${x.name}</option>`)).join('');
+  document.getElementById('uploadKbSelect').innerHTML = options;
+  document.getElementById('chatKbSelect').innerHTML = options;
+}
+
+async function loadDocs() {
+  const data = await api('/api/documents?limit=20');
+  const headers = ['ID', '文件名', '状态', '格式', '大小(bytes)', '时间', '操作'];
+  const rows = data.items.length
+    ? data.items.map(x => `
+      <tr>
+        <td>${x.id}</td>
+        <td>${x.filename}</td>
+        <td>${x.status}</td>
+        <td>${x.format}</td>
+        <td>${x.file_size_bytes || 0}</td>
+        <td>${x.created_at}</td>
+        <td>
+          <button class="btn secondary" style="padding:4px 8px;font-size:12px" onclick="updateDoc(${x.id})">修改</button>
+          <button class="btn warn" style="padding:4px 8px;font-size:12px" onclick="deleteDoc(${x.id})">删除</button>
+        </td>
+      </tr>`).join('')
+    : `<tr><td colspan="7" class="muted">暂无数据</td></tr>`;
+  docTable.innerHTML = `<tr>${headers.map(h => `<th>${h}</th>`).join('')}</tr>${rows}`;
+  document.getElementById('kDoc').textContent = String(data.items.length);
+}
+
+async function loadTelemetry() {
+  const data = await api('/api/loop_runs?limit=20');
+  const j = await api('/api/judgements?limit=20');
+  document.getElementById('kLoop').textContent = String(data.items.length);
+  document.getElementById('kJudgement').textContent = String(j.items.length);
+}
+
+function addBubble(text, user = false) {
+  const div = document.createElement('div');
+  div.className = `bubble ${user ? 'user' : ''}`;
+  div.textContent = text;
+  const list = document.getElementById('chatList');
+  list.appendChild(div);
+  list.scrollTop = list.scrollHeight;
+}
+
+document.getElementById('createModelBtn').onclick = async () => {
+  try {
+    await api('/api/model-configs', {
+      method: 'POST',
+      body: JSON.stringify({ name: mcName.value.trim(), model: mcModel.value.trim(), api_key: mcKey.value.trim(), is_default: true })
+    });
+    setStatus('modelStatus', '模型配置已保存');
+    await loadModels();
+  } catch (e) { setStatus('modelStatus', `保存失败：${e.message}`, false); }
+};
+
+document.getElementById('createKbBtn').onclick = async () => {
+  try {
+    await api('/api/knowledge-bases', {
+      method: 'POST',
+      body: JSON.stringify({ name: kbName.value.trim(), domain: kbDomain.value.trim(), description: kbDesc.value.trim() })
+    });
+    setStatus('kbStatus', '知识库已创建');
+    kbName.value = ''; kbDesc.value = '';
+    await loadKBs();
+  } catch (e) { setStatus('kbStatus', `创建失败：${e.message}`, false); }
+};
+
+const fileInput = document.getElementById('fileInput');
+const dropZone = document.getElementById('dropZone');
+
+dropZone.onclick = () => fileInput.click();
+fileInput.onchange = () => handleUpload(fileInput.files[0]);
+dropZone.ondragover = (e) => { e.preventDefault(); dropZone.style.background = '#eef2ff'; };
+dropZone.ondragleave = () => { dropZone.style.background = '#f7f9ff'; };
+dropZone.ondrop = (e) => {
+  e.preventDefault();
+  dropZone.style.background = '#f7f9ff';
+  const file = e.dataTransfer.files?.[0];
+  if (file) handleUpload(file);
+};
+
+async function handleUpload(file) {
+  if (!file) return;
+  if (file.size > 150 * 1024 * 1024) {
+    setStatus('uploadStatus', '上传失败：文件超过 150MB 限制', false);
+    return;
+  }
+  try {
+    const base64 = await new Promise((resolve, reject) => {
+      const fr = new FileReader();
+      fr.onload = () => resolve(String(fr.result).split(',')[1] || '');
+      fr.onerror = reject;
+      fr.readAsDataURL(file);
+    });
+    const kb = uploadKbSelect.value ? Number(uploadKbSelect.value) : null;
+    const body = JSON.stringify({
+      filename: file.name,
+      content_base64: base64,
+      mime_type: file.type || 'application/octet-stream',
+      scenario: scenarioInput.value || 'general',
+      knowledge_base_id: kb,
+    });
+    let ret;
+    try {
+      ret = await api('/api/documents/upload', { method: 'POST', body });
+    } catch (e) {
+      // one retry for unstable local network/proxy
+      ret = await api('/api/documents/upload', { method: 'POST', body });
+    }
+    setStatus('uploadStatus', `上传成功，入库 ${ret.ingested}，跳过 ${ret.skipped || 0}`);
+    await loadDocs();
+  } catch (e) { setStatus('uploadStatus', `上传失败：${e.message}`, false); }
+}
+
+document.getElementById('sendBtn').onclick = async () => {
+  const q = chatInput.value.trim();
+  if (!q) return;
+  addBubble(q, true);
+  chatInput.value = '';
+  try {
+    const kb = chatKbSelect.value ? Number(chatKbSelect.value) : null;
+    const ret = await api('/api/assistant/query', {
+      method: 'POST',
+      body: JSON.stringify({ query: q, scenario: 'general', knowledge_base_id: kb })
+    });
+    addBubble(ret.answer || '(empty)');
+  } catch (e) { addBubble(`请求失败：${e.message}`); }
+};
+
+document.getElementById('reloadAllBtn').onclick = async () => { await bootstrap(); };
+
+async function bootstrap() {
+  await Promise.all([loadModels(), loadKBs(), loadDocs(), loadTelemetry(), loadRuleWeights()]);
+}
+bootstrap().catch(err => addBubble(`初始化失败：${err.message}`));
+</script>
+</body>
+</html>
