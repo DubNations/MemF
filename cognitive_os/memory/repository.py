@@ -140,6 +140,12 @@ class MemoryPlane:
         with self._connect() as conn:
             rows = conn.execute("SELECT payload FROM rules ORDER BY id").fetchall()
         return [Rule.from_dict(json.loads(row[0])) for row in rows]
+    def delete_rule(self, rule_id: str) -> bool:
+        with self._connect() as conn:
+            cur = conn.execute("DELETE FROM rules WHERE id = ?", (rule_id,))
+        return int(cur.rowcount) > 0
+
+
 
     # ----- KB management -----
     def create_knowledge_base(self, name: str, domain: str, description: str) -> Dict[str, Any]:

@@ -16,6 +16,7 @@ from cognitive_os.experiments.run_iterations import run as run_iterations
 from cognitive_os.memory.repository import MemoryPlane
 from cognitive_os.ontology.ontology_entity import KnowledgeUnit
 from cognitive_os.rules.rule import Rule
+from cognitive_os.rules.rule_bootstrap import bootstrap_rules_from_web
 from cognitive_os.skills.registry import SkillManager
 from cognitive_os.vector.vector_store import LocalVectorDB
 
@@ -116,13 +117,30 @@ class _Handler(BaseHTTPRequestHandler):
         if parsed.path == "/api/rules/weights":
             rules = [asdict(x) for x in self.memory.load_rules()]
             by_scope: dict[str, int] = {}
+            by_boundary: dict[str, int] = {}
             total_priority = 0
             for r in rules:
                 scope = str(r.get("scope", "global"))
+                boundary = str(r.get("applicable_boundary", "global"))
                 by_scope[scope] = by_scope.get(scope, 0) + 1
+                by_boundary[boundary] = by_boundary.get(boundary, 0) + 1
                 total_priority += int(r.get("priority", 0) or 0)
             avg_priority = round(total_priority / len(rules), 2) if rules else 0
-            self._send_json(200, {"items": rules, "stats": {"count": len(rules), "avg_priority": avg_priority, "by_scope": by_scope}})
+            self._send_json(200, {"items": rules, "stats": {"count": len(rules), "avg_priority": avg_priority, "by_scope": by_scope, "by_boundary": by_boundary}})
+            return
+
+        if parsed.path == "/api/rule-system/overview":
+            self._send_json(
+                200,
+                {
+                    "layers": [
+                        {"name": "规则层", "capabilities": ["优先级裁决", "边界约束", "动作约束"]},
+                        {"name": "冲突层", "capabilities": ["低置信度识别", "同主题极性冲突检测", "人工复核触发"]},
+                        {"name": "时效层", "capabilities": ["过期/失效标注", "更新建议", "高风险阻断"]},
+                        {"name": "证据层", "capabilities": ["来源可信度加权", "语义检索", "冲突惩罚重排"]},
+                    ]
+                },
+            )
             return
 
         if parsed.path == "/api/knowledge":
@@ -268,6 +286,35 @@ class _Handler(BaseHTTPRequestHandler):
             rule = Rule.from_dict(payload)
             self.memory.save_rules([rule])
             self._send_json(201, {"status": "ok", "id": rule.id})
+            return
+
+        if self.path == "/api/rules/delete":
+            rid = payload.get("id", "")
+            if not rid:
+                self._error(400, "INVALID_RULE", "id required")
+                return
+            ok = self.memory.delete_rule(rid)
+            if not ok:
+                self._error(404, "NOT_FOUND", "rule not found")
+                return
+            self._send_json(200, {"status": "ok", "id": rid})
+            return
+
+        if self.path == "/api/rules/bootstrap":
+            domain = str(payload.get("domain", "finance"))
+            max_rules = int(payload.get("max_rules", 12))
+            result = bootstrap_rules_from_web(domain=domain, max_rules=max_rules)
+            self.memory.save_rules(result.rules)
+            self._send_json(
+                200,
+                {
+                    "status": "ok",
+                    "saved": len(result.rules),
+                    "fetched_urls": result.fetched_urls,
+                    "errors": result.errors,
+                    "items": [asdict(r) for r in result.rules],
+                },
+            )
             return
 
         if self.path == "/api/knowledge":
