@@ -17,6 +17,7 @@ from cognitive_os.memory.repository import MemoryPlane
 from cognitive_os.ontology.ontology_entity import KnowledgeUnit
 from cognitive_os.rules.rule import Rule
 from cognitive_os.rules.rule_bootstrap import bootstrap_rules_from_web
+from cognitive_os.rules.simulator import simulate_rules
 from cognitive_os.skills.registry import SkillManager
 from cognitive_os.vector.vector_store import LocalVectorDB
 
@@ -315,6 +316,22 @@ class _Handler(BaseHTTPRequestHandler):
                     "items": [asdict(r) for r in result.rules],
                 },
             )
+            return
+
+        if self.path == "/api/rules/simulate":
+            goal = str(payload.get("goal", ""))
+            boundary = str(payload.get("boundary", "global"))
+            metadata = payload.get("metadata", {})
+            knowledge_count = int(payload.get("knowledge_count", 0))
+            rules = self.memory.load_rules()
+            result = simulate_rules(
+                rules=rules,
+                goal=goal,
+                boundary=boundary,
+                metadata=metadata if isinstance(metadata, dict) else {},
+                knowledge_count=knowledge_count,
+            )
+            self._send_json(200, {"status": "ok", **result})
             return
 
         if self.path == "/api/knowledge":
