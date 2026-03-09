@@ -14,10 +14,16 @@ from cognitive_os.vector.vector_store import LocalVectorDB
 
 class BrainToolkit:
     MAX_UPLOAD_BYTES = 150 * 1024 * 1024
+    ALLOWED_EXTENSIONS = {".pdf", ".doc", ".docx", ".pptx", ".txt", ".md", ".csv", ".xlsx"}
     ALLOWED_MIME = {
         "application/pdf",
         "application/msword",
         "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+        "application/vnd.openxmlformats-officedocument.presentationml.presentation",
+        "text/plain",
+        "text/markdown",
+        "text/csv",
+        "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
         "application/octet-stream",
     }
 
@@ -27,9 +33,13 @@ class BrainToolkit:
         self.vector_db = vector_db
 
     def validate_upload(self, filename: str, mime_type: str, content_base64: str) -> Dict[str, Any]:
-        ext_ok = any(filename.lower().endswith(x) for x in [".pdf", ".doc", ".docx"])
-        if not ext_ok:
-            return {"ok": False, "code": "INVALID_FORMAT", "message": "Only DOC/DOCX/PDF are supported"}
+        ext = "." + filename.lower().split(".")[-1] if "." in filename else ""
+        if ext not in self.ALLOWED_EXTENSIONS:
+            return {
+                "ok": False,
+                "code": "INVALID_FORMAT",
+                "message": f"Supported formats: {', '.join(self.ALLOWED_EXTENSIONS)}",
+            }
 
         if mime_type and mime_type not in self.ALLOWED_MIME:
             return {"ok": False, "code": "INVALID_MIME", "message": f"Unsupported mime_type: {mime_type}"}
@@ -69,6 +79,8 @@ class BrainToolkit:
         source: str = "private",
         mime_type: str = "",
         knowledge_base_id: int | None = None,
+        use_megaparse: bool = True,
+        enable_ocr: bool = True,
     ) -> Dict[str, Any]:
         check = self.validate_upload(filename, mime_type, content_base64)
         if not check["ok"]:
@@ -87,7 +99,11 @@ class BrainToolkit:
             self.memory.save_document_record(metadata)
             return {"status": "FAILED", "metadata": metadata, "ingested": 0, "error": check}
 
-        parse_result, text = DocumentPipeline.parse_base64_document(filename, check["normalized_base64"])
+        parse_result, text = DocumentPipeline.parse_base64_document(
+            filename,
+            check["normalized_base64"],
+            parser=None,
+        )
         metadata = DocumentPipeline.map_document_metadata(parse_result, scenario)
         metadata["knowledge_base_id"] = knowledge_base_id
         metadata["mime_type"] = mime_type
@@ -97,7 +113,12 @@ class BrainToolkit:
         if parse_result.status != "OK":
             return {"status": "FAILED", "metadata": metadata, "ingested": 0}
 
-        units = DocumentPipeline.to_knowledge_units(filename, text, scenario=scenario, source=source)
+        units = DocumentPipeline.to_knowledge_units_from_result(
+            parse_result,
+            text,
+            scenario=scenario,
+            source=source,
+        )
         result = self.memory.save_knowledge_units_bulk([asdict(u) for u in units])
         for u in units:
             summary = u.content.get("summary", "") if isinstance(u.content, dict) else str(u.content)
@@ -112,6 +133,8 @@ class BrainToolkit:
                     "knowledge_base_id": knowledge_base_id,
                     "document_id": document_id,
                     "filename": filename,
+                    "tables_count": u.content.get("tables_count", 0) if isinstance(u.content, dict) else 0,
+                    "ocr_used": u.content.get("ocr_used", False) if isinstance(u.content, dict) else False,
                 },
             )
         return {
@@ -120,6 +143,8 @@ class BrainToolkit:
             "document_id": document_id,
             "ingested": len(result["inserted"]),
             "skipped": len(result["skipped"]),
+            "tables_count": parse_result.tables_count,
+            "ocr_used": parse_result.ocr_used,
         }
 
     def run_cognition(self, goal: str, scenario: str) -> Dict[str, Any]:
@@ -133,7 +158,6 @@ class BrainToolkit:
         if knowledge_base_id is not None:
             hits = [h for h in hits if int(h.metadata.get("knowledge_base_id") or 0) == int(knowledge_base_id)]
 
-        # hybrid rerank: vector + keyword overlap
         keywords = set(re.findall(r"\w+", query.lower()))
         enhanced = []
         for h in hits:
@@ -152,6 +176,8 @@ class BrainToolkit:
                 "filename": h.metadata.get("filename", ""),
                 "knowledge_base_id": h.metadata.get("knowledge_base_id"),
                 "text": h.text[:320],
+                "tables_count": h.metadata.get("tables_count", 0),
+                "ocr_used": h.metadata.get("ocr_used", False),
             }
             for h in reranked
         ]

@@ -1,13 +1,11 @@
 from __future__ import annotations
 
 import base64
-import io
-import re
-import zipfile
 from dataclasses import dataclass
-from typing import Any, Dict, List, Tuple
-from xml.etree import ElementTree
+from typing import Any, Dict, List, Optional, Tuple, Union
 
+from cognitive_os.ingestion.parsers import MegaparseAdapter, NativeParser
+from cognitive_os.ingestion.parsers.base_parser import BaseParser, ParseResult, ParseStrategy
 from cognitive_os.ontology.ontology_entity import KnowledgeUnit
 
 
@@ -18,14 +16,41 @@ class DocumentParseResult:
     status: str
     pages_or_sections: int
     text_length: int
+    tables_count: int = 0
+    ocr_used: bool = False
     message: str = ""
 
 
 class DocumentPipeline:
-    supported_extensions = {".pdf", ".doc", ".docx"}
+    supported_extensions = {".pdf", ".doc", ".docx", ".pptx", ".txt", ".md", ".csv", ".xlsx"}
+
+    def __init__(
+        self,
+        parser: Optional[BaseParser] = None,
+        use_megaparse: bool = True,
+        enable_ocr: bool = True,
+        enable_table_extraction: bool = True,
+        ocr_language: str = "chi_sim+eng",
+    ):
+        if parser is not None:
+            self._parser = parser
+        elif use_megaparse:
+            self._parser = MegaparseAdapter(
+                enable_ocr=enable_ocr,
+                enable_table_extraction=enable_table_extraction,
+                ocr_language=ocr_language,
+            )
+        else:
+            self._parser = NativeParser()
 
     @classmethod
-    def parse_base64_document(cls, filename: str, content_base64: str) -> Tuple[DocumentParseResult, str]:
+    def parse_base64_document(
+        cls,
+        filename: str,
+        content_base64: str,
+        strategy: ParseStrategy = ParseStrategy.AUTO,
+        parser: Optional[BaseParser] = None,
+    ) -> Tuple[DocumentParseResult, str]:
         ext = cls._ext(filename)
         if ext not in cls.supported_extensions:
             return (
@@ -44,32 +69,52 @@ class DocumentPipeline:
             content = base64.b64decode(content_base64)
         except Exception:
             return (
-                DocumentParseResult(filename, ext, "FAILED", 0, 0, "invalid_base64"),
+                DocumentParseResult(filename, ext, "FAILED", 0, 0, message="invalid_base64"),
                 "",
             )
 
-        if ext == ".pdf":
-            text = cls._parse_pdf(content)
-        elif ext == ".docx":
-            text = cls._parse_docx(content)
-        else:
-            text = cls._parse_doc_binary(content)
+        pipeline = cls(parser=parser)
+        return pipeline.parse_document(content, filename, strategy)
 
-        if not text.strip():
+    def parse_document(
+        self,
+        content: bytes,
+        filename: str,
+        strategy: ParseStrategy = ParseStrategy.AUTO,
+    ) -> Tuple[DocumentParseResult, str]:
+        ext = self._ext(filename)
+
+        result = self._parser.parse(content, filename, strategy)
+
+        if not result.success:
             return (
-                DocumentParseResult(filename, ext, "FAILED", 0, 0, "empty_or_unreadable_content"),
+                DocumentParseResult(
+                    filename=filename,
+                    format=ext,
+                    status="FAILED",
+                    pages_or_sections=0,
+                    text_length=0,
+                    message=result.error or "empty_or_unreadable_content",
+                ),
                 "",
             )
 
-        sections = max(1, len([x for x in text.split("\n") if x.strip()]))
-        result = DocumentParseResult(
+        text_with_tables = result.text
+        if result.tables:
+            table_texts = [t.to_markdown() for t in result.tables if t.to_markdown()]
+            if table_texts:
+                text_with_tables = result.text + "\n\n" + "\n\n".join(table_texts)
+
+        doc_result = DocumentParseResult(
             filename=filename,
             format=ext,
             status="OK",
-            pages_or_sections=sections,
-            text_length=len(text),
+            pages_or_sections=result.pages,
+            text_length=len(text_with_tables),
+            tables_count=len(result.tables),
+            ocr_used=result.ocr_used,
         )
-        return result, text
+        return doc_result, text_with_tables
 
     @classmethod
     def to_knowledge_units(
@@ -79,9 +124,18 @@ class DocumentPipeline:
         scenario: str,
         source: str = "private",
         chunk_size: int = 800,
+        tables_count: int = 0,
+        ocr_used: bool = False,
     ) -> List[KnowledgeUnit]:
         chunks = [raw_text[i : i + chunk_size] for i in range(0, len(raw_text), chunk_size)]
         units: List[KnowledgeUnit] = []
+
+        base_confidence = 0.62
+        if ocr_used:
+            base_confidence = 0.55
+        if tables_count > 0:
+            base_confidence = min(0.70, base_confidence + 0.05)
+
         for i, chunk in enumerate(chunks):
             units.append(
                 KnowledgeUnit(
@@ -94,13 +148,34 @@ class DocumentPipeline:
                         "document": filename,
                         "section_index": i,
                         "reinforcement": 0.02,
+                        "tables_count": tables_count,
+                        "ocr_used": ocr_used,
                     },
                     source=source,
-                    confidence=0.62,
+                    confidence=base_confidence,
                     valid_boundary="global",
                 )
             )
         return units
+
+    @classmethod
+    def to_knowledge_units_from_result(
+        cls,
+        result: DocumentParseResult,
+        raw_text: str,
+        scenario: str,
+        source: str = "private",
+        chunk_size: int = 800,
+    ) -> List[KnowledgeUnit]:
+        return cls.to_knowledge_units(
+            filename=result.filename,
+            raw_text=raw_text,
+            scenario=scenario,
+            source=source,
+            chunk_size=chunk_size,
+            tables_count=result.tables_count,
+            ocr_used=result.ocr_used,
+        )
 
     @staticmethod
     def map_document_metadata(result: DocumentParseResult, scenario: str) -> Dict[str, Any]:
@@ -110,6 +185,8 @@ class DocumentPipeline:
             "status": result.status,
             "sections": result.pages_or_sections,
             "text_length": result.text_length,
+            "tables_count": result.tables_count,
+            "ocr_used": result.ocr_used,
             "scenario": scenario,
             "message": result.message,
         }
@@ -118,39 +195,3 @@ class DocumentPipeline:
     def _ext(filename: str) -> str:
         idx = filename.rfind(".")
         return filename[idx:].lower() if idx != -1 else ""
-
-    @staticmethod
-    def _parse_docx(content: bytes) -> str:
-        try:
-            with zipfile.ZipFile(io.BytesIO(content)) as zf:
-                data = zf.read("word/document.xml")
-            root = ElementTree.fromstring(data)
-            text_nodes = [node.text for node in root.iter() if node.tag.endswith("}t") and node.text]
-            return "\n".join(text_nodes)
-        except Exception:
-            return ""
-
-    @staticmethod
-    def _parse_pdf(content: bytes) -> str:
-        # Lightweight extraction: pull text fragments from PDF stream literals.
-        # Works for many text PDFs and fails safely for scanned/image PDFs.
-        text_fragments = re.findall(rb"\(([^\)]{1,500})\)\s*Tj", content)
-        if not text_fragments:
-            text_fragments = re.findall(rb"\[(.*?)\]\s*TJ", content, flags=re.S)
-        parts: List[str] = []
-        for frag in text_fragments:
-            try:
-                cleaned = frag.replace(b"\\n", b" ").replace(b"\\r", b" ")
-                parts.append(cleaned.decode("latin-1", errors="ignore"))
-            except Exception:
-                continue
-        return "\n".join([p.strip() for p in parts if p.strip()])
-
-    @staticmethod
-    def _parse_doc_binary(content: bytes) -> str:
-        # Legacy .doc fallback parser (best-effort): strip control bytes.
-        # For advanced fidelity, plug in antiword/libreoffice in future iterations.
-        text = content.decode("latin-1", errors="ignore")
-        text = re.sub(r"[\x00-\x08\x0b\x0c\x0e-\x1f]", " ", text)
-        text = re.sub(r"\s+", " ", text)
-        return text.strip()

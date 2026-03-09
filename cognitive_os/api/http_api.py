@@ -10,15 +10,21 @@ from urllib.parse import parse_qs, urlparse
 from cognitive_os.brain.assistant import PersonalKnowledgeAssistant
 from cognitive_os.brain.llm_client import LLMBrainClient
 from cognitive_os.brain.toolkit import BrainToolkit
+from cognitive_os.commands import BuiltinCommands
+from cognitive_os.commands.custom_commands import CustomCommandManager
 from cognitive_os.core.cognition_loop import CognitiveLoop
 from cognitive_os.experiments.generate_datasets import generate as generate_datasets
 from cognitive_os.experiments.run_iterations import run as run_iterations
 from cognitive_os.memory.repository import MemoryPlane
 from cognitive_os.ontology.ontology_entity import KnowledgeUnit
+from cognitive_os.rag.chat_history import ChatHistoryManager
+from cognitive_os.rag.reranker import RerankerFactory
+from cognitive_os.rag.workflow_config import RetrievalConfig, WorkflowConfig, create_default_workflow_yaml
 from cognitive_os.rules.rule import Rule
 from cognitive_os.rules.rule_bootstrap import bootstrap_rules_from_web
 from cognitive_os.rules.simulator import simulate_rules
 from cognitive_os.skills.registry import SkillManager
+from cognitive_os.vector.vector_cache import VectorCache
 from cognitive_os.vector.vector_store import LocalVectorDB
 
 
@@ -27,6 +33,12 @@ class _Handler(BaseHTTPRequestHandler):
     memory: MemoryPlane
     assistant: PersonalKnowledgeAssistant
     toolkit: BrainToolkit
+    chat_history: ChatHistoryManager
+    slash_parser: SlashCommandParser
+    custom_cmd_manager: CustomCommandManager
+    pinning_manager: DocumentPinningManager
+    citation_manager: CitationManager
+    vector_cache: VectorCache
 
     def _send_json(self, status: int, payload: dict) -> None:
         data = json.dumps(payload, ensure_ascii=False).encode("utf-8")
@@ -86,7 +98,7 @@ class _Handler(BaseHTTPRequestHandler):
             )
         )
 
-    def do_GET(self) -> None:  # noqa: N802
+    def do_GET(self) -> None:
         parsed = urlparse(self.path)
 
         if parsed.path == "/":
@@ -209,9 +221,60 @@ class _Handler(BaseHTTPRequestHandler):
             )
             return
 
+        if parsed.path == "/api/sessions":
+            qs = parse_qs(parsed.query)
+            knowledge_base_id = qs.get("knowledge_base_id", [None])[0]
+            limit = int(qs.get("limit", ["20"])[0])
+            kb_id_int = int(knowledge_base_id) if knowledge_base_id else None
+            sessions = self.chat_history.list_sessions(knowledge_base_id=kb_id_int, limit=limit)
+            self._send_json(200, {"items": sessions})
+            return
+
+        if parsed.path.startswith("/api/sessions/") and parsed.path.endswith("/pinned"):
+            parts = parsed.path.split("/")
+            session_id = parts[3]
+            pinned = self.pinning_manager.get_session_pins(session_id)
+            self._send_json(200, {"session_id": session_id, "pinned_documents": [p.to_dict() for p in pinned]})
+            return
+
+        if parsed.path.startswith("/api/sessions/"):
+            session_id = parsed.path.split("/")[-1]
+            session = self.chat_history.get_session(session_id)
+            if not session:
+                self._error(404, "NOT_FOUND", "session not found")
+                return
+            self._send_json(200, {"session": session.to_dict()})
+            return
+
+        if parsed.path == "/api/rerankers":
+            self._send_json(200, {"available": RerankerFactory.available_rerankers()})
+            return
+
+        if parsed.path == "/api/supported-formats":
+            self._send_json(200, {"formats": list(BrainToolkit.ALLOWED_EXTENSIONS)})
+            return
+
+        if parsed.path == "/api/commands":
+            builtin = BuiltinCommands.list_commands()
+            custom = self.custom_cmd_manager.list_commands()
+            self._send_json(
+                200,
+                {
+                    "builtin": builtin,
+                    "custom": custom,
+                    "usage": "Use /command syntax in query, e.g., /reset, /web search term, /summarize",
+                },
+            )
+            return
+
+        if parsed.path == "/api/vector-cache/stats":
+            stats = self.vector_cache.get_stats()
+            self._send_json(200, {"stats": stats})
+            return
+
         self.send_error(404)
 
-    def do_POST(self) -> None:  # noqa: N802
+    def do_POST(self) -> None:
         protected = self.path.startswith("/api/") or self.path == "/cognition/run"
         if protected and not self._require_auth():
             self._error(401, "UNAUTHORIZED", "Missing or invalid API token")
@@ -375,6 +438,8 @@ class _Handler(BaseHTTPRequestHandler):
             source = payload.get("source", "private")
             mime_type = payload.get("mime_type", "")
             knowledge_base_id = payload.get("knowledge_base_id")
+            use_megaparse = payload.get("use_megaparse", True)
+            enable_ocr = payload.get("enable_ocr", True)
             if not filename or not content_base64:
                 self._error(400, "INVALID_DOCUMENT", "Missing filename or content_base64")
                 return
@@ -385,6 +450,8 @@ class _Handler(BaseHTTPRequestHandler):
                 source=source,
                 mime_type=mime_type,
                 knowledge_base_id=knowledge_base_id,
+                use_megaparse=use_megaparse,
+                enable_ocr=enable_ocr,
             )
             if result["status"] != "OK":
                 self._error(400, "DOCUMENT_PARSE_FAILED", "Document parse failed", result.get("error", {}).get("message", ""))
@@ -420,25 +487,125 @@ class _Handler(BaseHTTPRequestHandler):
             self._send_json(200, {"status": "ok", "id": doc_id, "removed_vectors": result.get("removed_vectors", 0)})
             return
 
+        if self.path == "/api/sessions":
+            knowledge_base_id = payload.get("knowledge_base_id")
+            session_id = self.assistant.create_session(knowledge_base_id=knowledge_base_id)
+            self._send_json(201, {"status": "ok", "session_id": session_id})
+            return
+
+        if self.path == "/api/sessions/delete":
+            session_id = payload.get("session_id", "")
+            if not session_id:
+                self._error(400, "INVALID_SESSION", "session_id is required")
+                return
+            deleted = self.chat_history.delete_session(session_id)
+            self._send_json(200, {"status": "ok", "deleted": deleted})
+            return
+
+        if self.path == "/api/sessions/pin":
+            session_id = payload.get("session_id", "")
+            document_id = payload.get("document_id")
+            knowledge_unit_id = payload.get("knowledge_unit_id", "")
+            filename = payload.get("filename", "")
+            if not session_id or (not document_id and not knowledge_unit_id):
+                self._error(400, "INVALID_PIN", "session_id and (document_id or knowledge_unit_id) are required")
+                return
+            pinned = self.pinning_manager.pin_document(
+                session_id=session_id,
+                document_id=document_id,
+                knowledge_unit_id=knowledge_unit_id,
+                filename=filename,
+            )
+            self._send_json(201, {"status": "ok", "pinned": pinned.to_dict()})
+            return
+
+        if self.path == "/api/sessions/unpin":
+            session_id = payload.get("session_id", "")
+            document_id = payload.get("document_id")
+            knowledge_unit_id = payload.get("knowledge_unit_id", "")
+            if not session_id:
+                self._error(400, "INVALID_UNPIN", "session_id is required")
+                return
+            unpinned = self.pinning_manager.unpin_document(
+                session_id=session_id,
+                document_id=document_id,
+                knowledge_unit_id=knowledge_unit_id,
+            )
+            self._send_json(200, {"status": "ok", "unpinned": unpinned})
+            return
+
+        if self.path == "/api/commands/custom":
+            name = payload.get("name", "").strip()
+            template = payload.get("template", "").strip()
+            description = payload.get("description", "")
+            if not name or not template:
+                self._error(400, "INVALID_COMMAND", "name and template are required")
+                return
+            if not name.startswith("/"):
+                name = "/" + name
+            cmd = self.custom_cmd_manager.create_command(name=name, template=template, description=description)
+            self._send_json(201, {"status": "ok", "command": cmd})
+            return
+
+        if self.path == "/api/commands/custom/delete":
+            name = payload.get("name", "").strip()
+            if not name:
+                self._error(400, "INVALID_COMMAND", "name is required")
+                return
+            deleted = self.custom_cmd_manager.delete_command(name)
+            self._send_json(200, {"status": "ok", "deleted": deleted})
+            return
+
+        if self.path == "/api/vector-cache/clear":
+            cleared = self.vector_cache.clear_expired()
+            self._send_json(200, {"status": "ok", "cleared_entries": cleared})
+            return
+
         if self.path == "/api/assistant/query":
             query = payload.get("query", "")
             scenario = payload.get("scenario", "general")
             knowledge_base_id = payload.get("knowledge_base_id")
+            session_id = payload.get("session_id")
+            use_history = payload.get("use_history", True)
+            use_rewrite = payload.get("use_rewrite", True)
+            use_rerank = payload.get("use_rerank", True)
+            web_mode = payload.get("web_mode", False)
             if not query:
                 self._error(400, "INVALID_QUERY", "query is required")
                 return
             self._refresh_assistant_model()
-            result = self.assistant.handle_query(query, scenario=scenario, knowledge_base_id=knowledge_base_id)
-            self._send_json(
-                200,
-                {
-                    "answer": result.answer,
-                    "tool_trace": result.tool_trace,
-                    "retrieved": result.retrieved,
-                    "model": result.model,
-                    "used_remote_model": result.used_remote_model,
-                },
+            result = self.assistant.handle_query(
+                query,
+                scenario=scenario,
+                knowledge_base_id=knowledge_base_id,
+                session_id=session_id,
+                use_history=use_history,
+                use_rewrite=use_rewrite,
+                use_rerank=use_rerank,
+                web_mode=web_mode,
             )
+            response = {
+                "answer": result.answer,
+                "tool_trace": result.tool_trace,
+                "retrieved": result.retrieved,
+                "model": result.model,
+                "used_remote_model": result.used_remote_model,
+                "query_rewrite": result.query_rewrite,
+                "session_id": result.session_id,
+                "rerank_used": result.rerank_used,
+            }
+            if result.citations:
+                response["citations"] = [asdict(c) for c in result.citations]
+            if result.command_result:
+                response["command_result"] = {
+                    "command": result.command_result.command,
+                    "success": result.command_result.success,
+                    "message": result.command_result.message,
+                    "data": result.command_result.data,
+                }
+            if result.pinned_documents:
+                response["pinned_documents"] = [asdict(p) for p in result.pinned_documents]
+            self._send_json(200, response)
             return
 
         if self.path == "/api/experiments/run":
@@ -461,14 +628,37 @@ def run_http_api(host: str = "0.0.0.0", port: int = 8000, db_path: str = "./data
     skill_manager = SkillManager()
     loop = CognitiveLoop(memory, skill_manager)
     vector_db = LocalVectorDB(Path(db_path).with_suffix(".vector.db"))
+    chat_history = ChatHistoryManager(db_path.replace(".db", "_chat.db"))
     toolkit = BrainToolkit(memory=memory, loop=loop, vector_db=vector_db)
-    assistant = PersonalKnowledgeAssistant(toolkit=toolkit)
+
+    cache_db_path = db_path.replace(".db", "_cache.db")
+    vector_cache = VectorCache(cache_db_path)
+
+    custom_cmd_manager = CustomCommandManager(db_path.replace(".db", "_commands.db"))
+
+    assistant = PersonalKnowledgeAssistant(
+        toolkit=toolkit,
+        chat_history_manager=chat_history,
+        vector_cache=vector_cache,
+    )
 
     _Handler.memory = memory
     _Handler.loop = loop
     _Handler.toolkit = toolkit
     _Handler.assistant = assistant
+    _Handler.chat_history = chat_history
+    _Handler.slash_parser = assistant._slash_parser
+    _Handler.custom_cmd_manager = custom_cmd_manager
+    _Handler.pinning_manager = assistant._pinning_manager
+    _Handler.citation_manager = assistant._citation_manager
+    _Handler.vector_cache = vector_cache
+
+    workflow_yaml_path = "./config/workflow.yaml"
+    if not Path(workflow_yaml_path).exists():
+        create_default_workflow_yaml(workflow_yaml_path)
 
     server = HTTPServer((host, port), _Handler)
     print(f"Cognitive OS API running at http://{host}:{port}")
+    print(f"Supported formats: {', '.join(BrainToolkit.ALLOWED_EXTENSIONS)}")
+    print("New features: Slash Commands, Document Pinning, Citations, Vector Cache, Web Browsing")
     server.serve_forever()

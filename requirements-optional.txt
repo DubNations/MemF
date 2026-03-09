@@ -1,0 +1,17 @@
+# Cognitive OS - 可选依赖
+# 根据需要安装以下依赖以启用高级功能
+
+# 文档解析增强
+pdfplumber>=0.10.0
+openpyxl>=3.1.0
+
+# OCR支持
+pytesseract>=0.3.10
+pdf2image>=1.16.0
+
+# Reranker支持
+cohere>=5.0.0
+sentence-transformers>=2.2.0
+
+# Megaparse集成（可选）
+# megaparse>=0.1.0
