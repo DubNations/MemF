@@ -101,6 +101,9 @@ class LocalVectorDB:
         return hits[:top_k]
 
 
+import math
+
+
 class KnowledgeWeightedRetriever:
     """Novel weighting: semantic similarity + confidence + source trust - conflict penalty."""
 
@@ -110,11 +113,16 @@ class KnowledgeWeightedRetriever:
     def rerank(cls, hits: List[VectorHit]) -> List[VectorHit]:
         scored = []
         for hit in hits:
-            confidence = float(hit.metadata.get("confidence", 0.5))
+            sim_score = hit.score
+            conf = float(hit.metadata.get("confidence", 0.5))
             source = str(hit.metadata.get("source", "public"))
-            conflicts = int(hit.metadata.get("conflict_count", 0))
-            boost = confidence * 0.25 + cls.SOURCE_WEIGHT.get(source, 0.01) - min(0.18, conflicts * 0.04)
-            final = hit.score + boost
-            scored.append(VectorHit(id=hit.id, score=final, text=hit.text, metadata=hit.metadata))
+            source_w = cls.SOURCE_WEIGHT.get(source, 0.05)
+            conflict_count = int(hit.metadata.get("conflict_count", 0))
+            
+            confidence_multiplier = math.log2(1 + (conf * source_w * 10))
+            penalty_multiplier = math.pow(0.8, conflict_count)
+            
+            final_score = sim_score * confidence_multiplier * penalty_multiplier
+            scored.append(VectorHit(id=hit.id, score=final_score, text=hit.text, metadata=hit.metadata))
         scored.sort(key=lambda h: h.score, reverse=True)
         return scored

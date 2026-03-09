@@ -207,6 +207,24 @@ class PersonalKnowledgeAssistant:
             top_k=self.retrieval_config.top_k,
             knowledge_base_id=knowledge_base_id,
         )
+        
+        from cognitive_os.memory.half_life import KnowledgeHalfLifeManager
+        half_life_manager = KnowledgeHalfLifeManager()
+        
+        for item in retrieved:
+            try:
+                ku_list = self.toolkit.memory.load_knowledge_units()
+                for ku in ku_list:
+                    if ku.id == item.get("id"):
+                        half_life_manager.record_usage(ku)
+                        decayed_conf = half_life_manager.calculate_decayed_confidence(ku)
+                        ku.confidence = decayed_conf
+                        self.toolkit.memory.save_knowledge_units([ku])
+                        item["original_confidence"] = item.get("score", 0)
+                        item["decayed_confidence"] = decayed_conf
+                        break
+            except Exception:
+                pass
 
         if web_mode:
             web_results = self._fetch_web_results(actual_query)

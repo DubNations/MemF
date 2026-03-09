@@ -28,9 +28,14 @@ class KnowledgeUnit:
     valid_boundary: str
     invalid_boundary: str = ""
     conflict_ids: List[str] = field(default_factory=list)
+    last_used_at: float = 0.0
+    use_count: int = 0
+    created_at: float = 0.0
 
     @classmethod
     def from_dict(cls, payload: Dict[str, Any]) -> "KnowledgeUnit":
+        import time
+        current_time = time.time()
         return cls(
             id=payload["id"],
             knowledge_type=payload["knowledge_type"],
@@ -40,4 +45,7 @@ class KnowledgeUnit:
             valid_boundary=payload.get("valid_boundary", "global"),
             invalid_boundary=payload.get("invalid_boundary", ""),
             conflict_ids=list(payload.get("conflict_ids", [])),
+            last_used_at=float(payload.get("last_used_at", current_time)),
+            use_count=int(payload.get("use_count", 0)),
+            created_at=float(payload.get("created_at", current_time)),
         )

@@ -35,6 +35,21 @@
     .evidence{border-top:1px solid var(--line);padding:10px;max-height:220px;overflow:auto}.evidence h4{margin:0 0 6px;font-size:13px}
     .kpi-wrap{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}.kpi{border:1px solid var(--line);border-radius:10px;background:#fff;padding:8px}.kpi .v{font-weight:700;font-size:18px}
     .drop{border:1px dashed #a7b8ec;border-radius:10px;padding:14px;text-align:center;font-size:13px;color:var(--muted);background:#f7f9ff;cursor:pointer}.status{margin-top:6px;font-size:12px}.ok{color:var(--ok)}.err{color:var(--err)}
+    .conflict-card{border:1px solid var(--line);border-radius:12px;padding:14px;background:#fff;margin-bottom:12px}
+    .conflict-header{display:flex;justify-content:space-between;align-items:center;margin-bottom:12px}
+    .conflict-content{display:grid;grid-template-columns:1fr auto 1fr;gap:12px;align-items:stretch}
+    .conflict-side{border:1px solid var(--line);border-radius:10px;padding:12px;background:#f9fbff}
+    .conflict-side h4{margin:0 0 8px;font-size:13px}
+    .conflict-actions{display:flex;flex-direction:column;gap:8px;justify-content:center;align-items:center;padding:0 4px}
+    .conflict-actions button{width:160px}
+    .xray-panel{background:#f5f7ff;border:1px solid #d9e5ff;border-radius:10px;padding:10px;margin-top:8px;font-size:12px}
+    .xray-panel h5{margin:0 0 6px;font-size:12px;color:#2e46ad}
+    .xray-item{display:grid;grid-template-columns:1fr auto;gap:8px;padding:4px 0;border-bottom:1px dashed #d9e5ff}
+    .xray-item:last-child{border-bottom:none}
+    .graph-node{position:absolute;border-radius:50%;display:flex;align-items:center;justify-content:center;font-weight:700;color:#fff;cursor:pointer;transition:transform .2s,box-shadow .2s}
+    .graph-node:hover{transform:scale(1.1)}
+    .graph-node.conflicted{animation:pulse 1.5s infinite}
+    @keyframes pulse{0%,100%{box-shadow:0 0 0 0 rgba(210,63,87,.4)}50%{box-shadow:0 0 0 12px rgba(210,63,87,0)}}
   </style>
 </head>
 <body>
@@ -46,6 +61,9 @@
       <button data-view="rulesView">规则配置与可视化</button>
       <button data-view="modelView">模型配置</button>
       <button data-view="kbView">知识管理</button>
+      <button data-view="conflictView">冲突处理中心</button>
+      <button data-view="graphView">知识图谱视图</button>
+      <button data-view="cognitiveView">认知参数</button>
       <button data-view="telemetryView">运行遥测</button>
     </div>
     <div class="rules-panel">
@@ -214,12 +232,132 @@
         </div>
         <div class="card"><h3>知识库列表</h3><table class="table" id="kbTable"></table></div>
       </section>
+      <section class="view" id="cognitiveView">
+        <div class="card">
+          <h3>🧠 认知参数调音台</h3>
+          <p class="mini" style="margin-bottom:12px">调节系统的"性格"和行为模式</p>
+          
+          <div class="field">
+            <label>遗忘曲线 (Decay Rate) <span class="help-icon">?</span></label>
+            <div class="help-tooltip">控制知识遗忘的速度：左边是"过目不忘（死板）"，右边是"快速遗忘（只重近期知识）"</div>
+            <div style="display:flex;align-items:center;gap:10px">
+              <span class="mini" style="min-width:80px">死板</span>
+              <input type="range" id="decayRate" min="0.01" max="0.2" step="0.01" value="0.05" style="flex:1"/>
+              <span class="mini" style="min-width:80px;text-align:right">灵活</span>
+            </div>
+            <div class="mini" id="decayRateValue" style="margin-top:4px">当前值: 0.05</div>
+          </div>
+          
+          <div class="field">
+            <label>严谨度边界 (Boundary Strictness) <span class="help-icon">?</span></label>
+            <div class="help-tooltip">控制知识边界验证的严格程度：宽松模式允许模糊匹配，严谨模式严格匹配</div>
+            <div style="display:flex;align-items:center;gap:10px">
+              <span class="mini" style="min-width:80px">宽松</span>
+              <input type="range" id="boundaryStrictness" min="0" max="1" step="0.1" value="0.5" style="flex:1"/>
+              <span class="mini" style="min-width:80px;text-align:right">严谨</span>
+            </div>
+            <div class="mini" id="boundaryStrictnessValue" style="margin-top:4px">当前值: 0.5</div>
+          </div>
+          
+          <div class="field">
+            <label>疑心病指数 (Paranoia Level) <span class="help-icon">?</span></label>
+            <div class="help-tooltip">控制红蓝对抗的触发阈值：指数越高，AI越喜欢挑错和报告冲突</div>
+            <div style="display:flex;align-items:center;gap:10px">
+              <span class="mini" style="min-width:80px">信任</span>
+              <input type="range" id="paranoiaLevel" min="0.5" max="0.95" step="0.05" value="0.85" style="flex:1"/>
+              <span class="mini" style="min-width:80px;text-align:right">多疑</span>
+            </div>
+            <div class="mini" id="paranoiaLevelValue" style="margin-top:4px">当前值: 0.85</div>
+          </div>
+          
+          <div class="field">
+            <label>最低置信度阈值 (Min Confidence) <span class="help-icon">?</span></label>
+            <div class="help-tooltip">低于此置信度的知识将被忽略或标记为待审查</div>
+            <div style="display:flex;align-items:center;gap:10px">
+              <span class="mini" style="min-width:80px">0.0</span>
+              <input type="range" id="minConfidence" min="0" max="0.5" step="0.05" value="0.1" style="flex:1"/>
+              <span class="mini" style="min-width:80px;text-align:right">0.5</span>
+            </div>
+            <div class="mini" id="minConfidenceValue" style="margin-top:4px">当前值: 0.1</div>
+          </div>
+          
+          <div class="row" style="margin-top:16px">
+            <button class="btn" id="saveCognitiveParams">保存参数</button>
+            <button class="btn secondary" id="resetCognitiveParams">重置默认</button>
+          </div>
+          <div class="status" id="cognitiveStatus"></div>
+        </div>
+        
+        <div class="card">
+          <h3>📊 认知参数说明</h3>
+          <div class="mini" style="line-height:1.8">
+            <p><strong>遗忘曲线</strong>：控制知识随时间衰减的速度。值越大，知识忘得越快。</p>
+            <p><strong>严谨度边界</strong>：控制知识边界匹配的严格程度。值越大，越严格。</p>
+            <p><strong>疑心病指数</strong>：控制冲突检测的敏感度。值越大，越容易检测到冲突。</p>
+            <p><strong>最低置信度</strong>：过滤低质量知识。值越大，保留的知识越可靠。</p>
+          </div>
+        </div>
+      </section>
+      
+      <section class="view" id="conflictView">
+        <div class="card">
+          <h3>⚔️ 认知失调处理中心</h3>
+          <p class="mini" style="margin-bottom:12px">系统拦截到知识冲突时，在这里进行仲裁</p>
+          <div class="row" style="margin-bottom:12px">
+            <button class="btn secondary" id="refreshConflicts">刷新冲突列表</button>
+            <button class="btn warn" id="clearAllConflicts">清除全部</button>
+          </div>
+        </div>
+        <div id="conflictList"></div>
+      </section>
+      
+      <section class="view" id="graphView">
+        <div class="card">
+          <h3>🧠 知识图谱神经元视图</h3>
+          <p class="mini" style="margin-bottom:12px">直观显示知识单元（KU）的状态</p>
+          <div class="row" style="margin-bottom:12px">
+            <button class="btn secondary" id="refreshGraph">刷新图谱</button>
+            <select id="graphFilter" style="max-width:200px">
+              <option value="all">全部知识</option>
+              <option value="recent">最近使用</option>
+              <option value="conflicted">有冲突标记</option>
+            </select>
+          </div>
+        </div>
+        <div class="card" style="height:600px;display:flex;align-items:center;justify-content:center;background:#f9fbff">
+          <div id="graphCanvas" style="width:100%;height:100%;position:relative">
+            <div class="muted" style="text-align:center">图谱加载中...</div>
+          </div>
+        </div>
+        <div class="card" style="margin-top:12px">
+          <h3>图例说明</h3>
+          <div class="grid2">
+            <div class="field">
+              <label>节点大小</label>
+              <div class="mini">代表 use_count（被调用次数）</div>
+            </div>
+            <div class="field">
+              <label>节点颜色</label>
+              <div class="mini">绿色（置信度高）→ 红色（濒临衰减），有冲突节点发光报警</div>
+            </div>
+          </div>
+        </div>
+      </section>
+      
       <section class="view" id="telemetryView"><div class="card"><h3>运行概览</h3><div class="kpi-wrap"><div class="kpi"><div class="v" id="kDoc">0</div><div class="muted">文档数</div></div><div class="kpi"><div class="v" id="kJudgement">0</div><div class="muted">Judgements</div></div><div class="kpi"><div class="v" id="kLoop">0</div><div class="muted">Loop Runs</div></div></div></div></section>
     </div>
   </main>
 
   <aside class="panel right">
-    <div class="chat-head"><h3>对话助手</h3></div>
+    <div class="chat-head" style="display:flex;justify-content:space-between;align-items:center">
+      <h3>对话助手</h3>
+      <div style="display:flex;align-items:center;gap:8px">
+        <span class="mini">X光模式</span>
+        <label style="cursor:pointer;display:flex;align-items:center">
+          <input type="checkbox" id="xrayToggle" style="width:auto;margin-right:6px"/>
+        </label>
+      </div>
+    </div>
     <div class="chat-list" id="chatList"></div>
     <div class="chat-input">
       <select id="chatKbSelect"></select>
@@ -299,8 +437,292 @@ fileInput.onchange=()=>handleUpload(fileInput.files[0]); dropZone.onclick=()=>fi
 async function handleUpload(file){ if(!file) return; if(file.size>150*1024*1024){ setStatus('uploadStatus','上传失败：文件超过 150MB 限制',false); return; } try{ const base64=await new Promise((resolve,reject)=>{ const fr=new FileReader(); fr.onload=()=>resolve(String(fr.result).split(',')[1]||''); fr.onerror=reject; fr.readAsDataURL(file); }); const body=JSON.stringify({filename:file.name,content_base64:base64,mime_type:file.type||'application/octet-stream',scenario:scenarioInput.value||'general',knowledge_base_id:uploadKbSelect.value?Number(uploadKbSelect.value):null}); let ret; try{ret=await api('/api/documents/upload',{method:'POST',body});}catch(_){ret=await api('/api/documents/upload',{method:'POST',body});} setStatus('uploadStatus',`上传成功，入库 ${ret.ingested}，跳过 ${ret.skipped||0}`); await loadDocs(); }catch(e){ setStatus('uploadStatus',`上传失败：${e.message}`,false);} }
 
 sendBtn.onclick=async()=>{ let q=chatInput.value.trim(); if(!q) return; addChatMessage(q,true); chatInput.value=''; try{ const ret=await api('/api/assistant/query',{method:'POST',body:JSON.stringify({query:q,scenario:'general',knowledge_base_id:chatKbSelect.value?Number(chatKbSelect.value):null})}); addChatMessage(ret.answer||'(empty)',false); renderEvidence(ret); }catch(e){ addChatMessage(`请求失败：${e.message}`,false);} };
+const cognitiveParams = {
+    decayRate: 0.05,
+    boundaryStrictness: 0.5,
+    paranoiaLevel: 0.85,
+    minConfidence: 0.1,
+};
+
+function loadCognitiveParams() {
+    const saved = localStorage.getItem('cognitiveParams');
+    if (saved) {
+        const params = JSON.parse(saved);
+        Object.assign(cognitiveParams, params);
+    }
+    
+    document.getElementById('decayRate').value = cognitiveParams.decayRate;
+    document.getElementById('boundaryStrictness').value = cognitiveParams.boundaryStrictness;
+    document.getElementById('paranoiaLevel').value = cognitiveParams.paranoiaLevel;
+    document.getElementById('minConfidence').value = cognitiveParams.minConfidence;
+    
+    updateParamDisplays();
+}
+
+function saveCognitiveParams() {
+    localStorage.setItem('cognitiveParams', JSON.stringify(cognitiveParams));
+    setStatus('cognitiveStatus', '认知参数已保存到本地');
+}
+
+function resetCognitiveParams() {
+    cognitiveParams.decayRate = 0.05;
+    cognitiveParams.boundaryStrictness = 0.5;
+    cognitiveParams.paranoiaLevel = 0.85;
+    cognitiveParams.minConfidence = 0.1;
+    
+    document.getElementById('decayRate').value = cognitiveParams.decayRate;
+    document.getElementById('boundaryStrictness').value = cognitiveParams.boundaryStrictness;
+    document.getElementById('paranoiaLevel').value = cognitiveParams.paranoiaLevel;
+    document.getElementById('minConfidence').value = cognitiveParams.minConfidence;
+    
+    updateParamDisplays();
+    localStorage.removeItem('cognitiveParams');
+    setStatus('cognitiveStatus', '已重置为默认参数');
+}
+
+function updateParamDisplays() {
+    document.getElementById('decayRateValue').textContent = `当前值: ${cognitiveParams.decayRate}`;
+    document.getElementById('boundaryStrictnessValue').textContent = `当前值: ${cognitiveParams.boundaryStrictness}`;
+    document.getElementById('paranoiaLevelValue').textContent = `当前值: ${cognitiveParams.paranoiaLevel}`;
+    document.getElementById('minConfidenceValue').textContent = `当前值: ${cognitiveParams.minConfidence}`;
+}
+
+document.getElementById('decayRate').addEventListener('input', (e) => {
+    cognitiveParams.decayRate = parseFloat(e.target.value);
+    updateParamDisplays();
+});
+
+document.getElementById('boundaryStrictness').addEventListener('input', (e) => {
+    cognitiveParams.boundaryStrictness = parseFloat(e.target.value);
+    updateParamDisplays();
+});
+
+document.getElementById('paranoiaLevel').addEventListener('input', (e) => {
+    cognitiveParams.paranoiaLevel = parseFloat(e.target.value);
+    updateParamDisplays();
+});
+
+document.getElementById('minConfidence').addEventListener('input', (e) => {
+    cognitiveParams.minConfidence = parseFloat(e.target.value);
+    updateParamDisplays();
+});
+
+document.getElementById('saveCognitiveParams').onclick = saveCognitiveParams;
+document.getElementById('resetCognitiveParams').onclick = resetCognitiveParams;
+
+let conflicts = [];
+let xrayEnabled = false;
+
+function getConfidenceColor(confidence) {
+    const r = Math.floor((1 - confidence) * 255);
+    const g = Math.floor(confidence * 255);
+    return `rgb(${r}, ${g}, 100)`;
+}
+
+function renderConflicts() {
+    const container = document.getElementById('conflictList');
+    if (conflicts.length === 0) {
+        container.innerHTML = '<div class="card"><div class="muted" style="text-align:center">暂无知识冲突，系统运行正常！</div></div>';
+        return;
+    }
+    
+    container.innerHTML = conflicts.map((conflict, idx) => `
+        <div class="conflict-card">
+            <div class="conflict-header">
+                <h4 style="margin:0">冲突 #${idx + 1} · ${conflict.topic || '未知主题'}</h4>
+                <span class="mini muted">${conflict.timestamp || new Date().toLocaleString()}</span>
+            </div>
+            <div class="conflict-content">
+                <div class="conflict-side">
+                    <h4>📚 历史知识</h4>
+                    <div class="mini" style="line-height:1.6">${conflict.oldKnowledge || '暂无内容'}</div>
+                    <div class="mini muted" style="margin-top:8px">置信度: ${(conflict.oldConfidence || 0).toFixed(2)} · 来源: ${conflict.oldSource || '未知'}</div>
+                </div>
+                <div class="conflict-actions">
+                    <button class="btn" onclick="resolveConflict(${idx}, 'adopt_new')">✓ 采纳新知识</button>
+                    <button class="btn secondary" onclick="resolveConflict(${idx}, 'keep_old')">✓ 保留老知识</button>
+                    <button class="btn warn" onclick="resolveConflict(${idx}, 'request_merge')">⚙ 请求模型融合</button>
+                </div>
+                <div class="conflict-side">
+                    <h4>🆕 新提取知识</h4>
+                    <div class="mini" style="line-height:1.6">${conflict.newKnowledge || '暂无内容'}</div>
+                    <div class="mini muted" style="margin-top:8px">置信度: ${(conflict.newConfidence || 0).toFixed(2)} · 来源: ${conflict.newSource || '未知'}</div>
+                </div>
+            </div>
+        </div>
+    `).join('');
+}
+
+function addMockConflicts() {
+    conflicts = [
+        {
+            topic: '机器学习定义',
+            oldKnowledge: '机器学习是人工智能的一个分支，通过算法让计算机从数据中学习模式。',
+            newKnowledge: '机器学习是人工智能的核心技术，使用统计模型和神经网络从数据中自动学习和改进。',
+            oldConfidence: 0.75,
+            newConfidence: 0.82,
+            oldSource: '文档 v1',
+            newSource: '文档 v2',
+            timestamp: new Date(Date.now() - 3600000).toLocaleString()
+        },
+        {
+            topic: 'Python版本',
+            oldKnowledge: 'Python 3.9 是最新的稳定版本。',
+            newKnowledge: 'Python 3.12 是目前最新的稳定版本，提供了更好的性能。',
+            oldConfidence: 0.6,
+            newConfidence: 0.9,
+            oldSource: '旧文档',
+            newSource: '最新技术资讯',
+            timestamp: new Date(Date.now() - 7200000).toLocaleString()
+        }
+    ];
+    renderConflicts();
+}
+
+function resolveConflict(idx, action) {
+    const actions = {
+        'adopt_new': '已采纳新知识，覆盖老知识',
+        'keep_old': '已保留老知识，抛弃新知识',
+        'request_merge': '已请求大模型进行知识融合'
+    };
+    alert(`冲突 #${idx + 1}: ${actions[action]}`);
+    conflicts.splice(idx, 1);
+    renderConflicts();
+}
+
+function renderKnowledgeGraph() {
+    const canvas = document.getElementById('graphCanvas');
+    const filter = document.getElementById('graphFilter').value;
+    
+    const mockNodes = [
+        { id: 1, label: 'AI', useCount: 45, confidence: 0.95, conflicted: false, x: 50, y: 50 },
+        { id: 2, label: 'ML', useCount: 32, confidence: 0.88, conflicted: false, x: 25, y: 30 },
+        { id: 3, label: 'DL', useCount: 28, confidence: 0.82, conflicted: true, x: 75, y: 30 },
+        { id: 4, label: 'Python', useCount: 65, confidence: 0.98, conflicted: false, x: 50, y: 75 },
+        { id: 5, label: 'Data', useCount: 18, confidence: 0.65, conflicted: false, x: 20, y: 70 },
+        { id: 6, label: 'NLP', useCount: 22, confidence: 0.72, conflicted: true, x: 80, y: 65 },
+        { id: 7, label: 'CNN', useCount: 12, confidence: 0.58, conflicted: false, x: 65, y: 20 },
+        { id: 8, label: 'RNN', useCount: 8, confidence: 0.45, conflicted: false, x: 35, y: 15 },
+    ];
+    
+    let filteredNodes = mockNodes;
+    if (filter === 'recent') {
+        filteredNodes = mockNodes.filter(n => n.useCount > 15);
+    } else if (filter === 'conflicted') {
+        filteredNodes = mockNodes.filter(n => n.conflicted);
+    }
+    
+    canvas.innerHTML = filteredNodes.map(node => {
+        const size = Math.max(30, Math.min(80, node.useCount * 1.5));
+        const color = getConfidenceColor(node.confidence);
+        const glow = node.conflicted ? 'rgba(210,63,87,0.6)' : 'transparent';
+        return `
+            <div class="graph-node ${node.conflicted ? 'conflicted' : ''}" 
+                 style="left:calc(${node.x}% - ${size/2}px);top:calc(${node.y}% - ${size/2}px);width:${size}px;height:${size}px;background:${color};font-size:${Math.max(10, size/3)}px;box-shadow:0 0 20px ${glow}">
+                ${node.label}
+            </div>
+        `;
+    }).join('');
+}
+
+function addChatMessage(text,isUser=false, xrayData=null){ 
+    const container=document.createElement('div'); 
+    container.className='chat-message';
+    const row=document.createElement('div');
+    row.className=`message-row ${isUser?'user':''}`;
+    
+    const avatar=document.createElement('div');
+    avatar.className=`avatar ${isUser?'user':'assistant'}`;
+    avatar.textContent=isUser?'我':'AI';
+    
+    const bubble=document.createElement('div');
+    bubble.className='message-bubble';
+    bubble.textContent=text;
+    
+    if(xrayEnabled && !isUser && xrayData) {
+        const xrayPanel = document.createElement('div');
+        xrayPanel.className='xray-panel';
+        xrayPanel.innerHTML = `
+            <h5>🔍 X光推理分析</h5>
+            ${xrayData.kuCalls ? xrayData.kuCalls.map(ku => `
+                <div class="xray-item">
+                    <span>${ku.topic || 'KU-' + ku.id}</span>
+                    <span style="font-weight:700">分数: ${(ku.score || 0).toFixed(3)}</span>
+                </div>
+            `).join('') : '<div class="mini muted">无知识单元调用记录</div>'}
+            ${xrayData.finalScore ? `<div style="margin-top:8px;font-weight:700">最终排序分数: ${xrayData.finalScore.toFixed(3)}</div>` : ''}
+            ${xrayData.rejected ? `<div class="mini muted" style="margin-top:4px">过滤原因: ${xrayData.rejected}</div>` : ''}
+        `;
+        bubble.appendChild(xrayPanel);
+    }
+    
+    if(isUser){
+        row.appendChild(bubble);
+        row.appendChild(avatar);
+    }else{
+        row.appendChild(avatar);
+        row.appendChild(bubble);
+    }
+    
+    container.appendChild(row);
+    chatList.appendChild(container);
+    chatList.scrollTop=chatList.scrollHeight;
+}
+
+document.getElementById('xrayToggle').addEventListener('change', (e) => {
+    xrayEnabled = e.target.checked;
+});
+
+document.getElementById('refreshConflicts').onclick = () => {
+    addMockConflicts();
+};
+
+document.getElementById('clearAllConflicts').onclick = () => {
+    if(confirm('确认清除所有冲突？')) {
+        conflicts = [];
+        renderConflicts();
+    }
+};
+
+document.getElementById('refreshGraph').onclick = renderKnowledgeGraph;
+document.getElementById('graphFilter').onchange = renderKnowledgeGraph;
+
+const originalSendBtnClick = sendBtn.onclick;
+sendBtn.onclick = async () => {
+    let q = chatInput.value.trim();
+    if (!q) return;
+    addChatMessage(q, true);
+    chatInput.value = '';
+    try {
+        const ret = await api('/api/assistant/query', {
+            method: 'POST',
+            body: JSON.stringify({
+                query: q,
+                scenario: 'general',
+                knowledge_base_id: chatKbSelect.value ? Number(chatKbSelect.value) : null
+            })
+        });
+        
+        const xrayData = {
+            kuCalls: ret.retrieved,
+            finalScore: ret.retrieved?.length > 0 ? Math.max(...ret.retrieved.map(r => r.score || 0)) : 0,
+            rejected: ret.retrieved?.length > 0 && ret.retrieved.length < 5 ? '部分知识因边界不符被过滤' : null
+        };
+        
+        addChatMessage(ret.answer || '(empty)', false, xrayData);
+        renderEvidence(ret);
+    } catch (e) {
+        addChatMessage(`请求失败：${e.message}`, false);
+    }
+};
+
 reloadAllBtn.onclick=async()=>bootstrap();
-async function bootstrap(){ await Promise.all([loadModels(),loadKBs(),loadDocs(),loadTelemetry(),loadRuleWeights(),loadRulesPage()]); }
+async function bootstrap(){ 
+    await Promise.all([loadModels(),loadKBs(),loadDocs(),loadTelemetry(),loadRuleWeights(),loadRulesPage()]); 
+    loadCognitiveParams();
+    renderConflicts();
+    renderKnowledgeGraph();
+}
 bootstrap().catch(err=>addChatMessage(`初始化失败：${err.message}`,false));
 </script>
 </body>

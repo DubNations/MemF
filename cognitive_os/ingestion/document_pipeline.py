@@ -127,6 +127,9 @@ class DocumentPipeline:
         tables_count: int = 0,
         ocr_used: bool = False,
     ) -> List[KnowledgeUnit]:
+        import time
+        current_time = time.time()
+        
         chunks = [raw_text[i : i + chunk_size] for i in range(0, len(raw_text), chunk_size)]
         units: List[KnowledgeUnit] = []
 
@@ -154,6 +157,9 @@ class DocumentPipeline:
                     source=source,
                     confidence=base_confidence,
                     valid_boundary="global",
+                    created_at=current_time,
+                    last_used_at=current_time,
+                    use_count=0,
                 )
             )
         return units
