@@ -277,26 +277,51 @@ class PersonalKnowledgeAssistant:
         history_block = f"\n对话历史:\n{history_context}\n" if history_context else ""
         citations_block = f"\n引用来源:\n{self._citation_manager.format_citations_inline(citations[:5])}" if citations else ""
 
+        has_relevant_knowledge = len(retrieved) > 0 and any(r.get("score", 0) > 0.3 for r in retrieved[:3])
+        
+        is_simple_greeting = any(greeting in actual_query.lower() for greeting in ["你好", "您好", "hi", "hello", "hey", "早上好", "下午好", "晚上好", "嗨"])
+        is_simple_chit_chat = any(term in actual_query.lower() for term in ["怎么样", "好吗", "是吗", "对吧", "在吗", "忙吗", "有空吗"])
+        is_knowledge_query = any(term in actual_query.lower() for term in ["什么", "怎么", "如何", "为什么", "哪里", "哪个", "多少", "吗?", "是?", "?", "？"])
+        
+        if has_relevant_knowledge:
+            is_knowledge_query = True
+
+        if is_simple_greeting or (not has_relevant_knowledge and not is_knowledge_query and not should_run_cognition):
+            system_prompt = "你是友好的个人知识服务助手。请用自然、亲切的方式回应用户的问候或简单对话。"
+            user_prompt = f"{history_block}用户: {actual_query}\n请友好地回应。"
+        elif has_relevant_knowledge or should_run_cognition:
+            system_prompt = (
+                "你是个人知识服务助手核心大脑。必须优先遵循知识体系创新：语义检索 + 置信度/来源/冲突加权。\n"
+                "当有相关知识检索结果或决策约束时，请按以下结构化输出：\n"
+                "1) 结论\n"
+                "2) 依据（引用检索到的知识）\n"
+                "3) 风险提示（如有）\n"
+                "4) 下一步行动清单（如有）\n"
+                "5) 引用来源（在回答末尾列出）"
+            )
+            user_prompt = (
+                f"{history_block}"
+                f"用户需求: {actual_query}\n"
+                f"场景: {scenario}\n"
+                f"知识检索结果:\n{context_block}\n"
+                f"{decision_block}\n"
+                f"{citations_block}\n"
+            )
+        else:
+            system_prompt = (
+                "你是个人知识服务助手。用户的问题没有找到相关知识库内容，请友好地告知用户，"
+                "并建议用户可以先上传相关文档或使用更具体的关键词搜索。"
+            )
+            user_prompt = f"{history_block}用户: {actual_query}\n知识库中暂未找到相关内容。"
+
         messages = [
             {
                 "role": "system",
-                "content": (
-                    "你是个人知识服务助手核心大脑。必须优先遵循知识体系创新：语义检索 + 置信度/来源/冲突加权。"
-                    "输出需要包含：结论、依据、风险、下一步行动。"
-                    "在回答末尾列出引用来源。"
-                ),
+                "content": system_prompt,
             },
             {
                 "role": "user",
-                "content": (
-                    f"{history_block}"
-                    f"用户需求: {actual_query}\n"
-                    f"场景: {scenario}\n"
-                    f"知识检索结果:\n{context_block}\n"
-                    f"{decision_block}\n"
-                    f"{citations_block}\n"
-                    "请输出结构：1) 结论 2) 依据 3) 风险提示 4) 下一步行动清单 5) 引用来源"
-                ),
+                "content": user_prompt,
             },
         ]
         llm_resp = self.llm.chat(messages)

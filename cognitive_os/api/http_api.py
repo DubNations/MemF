@@ -367,7 +367,8 @@ class _Handler(BaseHTTPRequestHandler):
         if self.path == "/api/rules/bootstrap":
             domain = str(payload.get("domain", "finance"))
             max_rules = int(payload.get("max_rules", 12))
-            result = bootstrap_rules_from_web(domain=domain, max_rules=max_rules)
+            firecrawl_api_key = payload.get("firecrawl_api_key")
+            result = bootstrap_rules_from_web(domain=domain, max_rules=max_rules, firecrawl_api_key=firecrawl_api_key)
             self.memory.save_rules(result.rules)
             self._send_json(
                 200,
