@@ -595,7 +595,11 @@ class _Handler(BaseHTTPRequestHandler):
                 "rerank_used": result.rerank_used,
             }
             if result.citations:
-                response["citations"] = [asdict(c) for c in result.citations]
+                citations_list = result.citations
+                if citations_list and isinstance(citations_list[0], dict):
+                    response["citations"] = citations_list
+                else:
+                    response["citations"] = [c.to_dict() for c in citations_list]
             if result.command_result:
                 response["command_result"] = {
                     "command": result.command_result.command,
@@ -631,7 +635,7 @@ def run_http_api(host: str = "0.0.0.0", port: int = 8000, db_path: str = "./data
     chat_history = ChatHistoryManager(db_path.replace(".db", "_chat.db"))
     toolkit = BrainToolkit(memory=memory, loop=loop, vector_db=vector_db)
 
-    cache_db_path = db_path.replace(".db", "_cache.db")
+    cache_db_path = db_path.replace(".db", "_cache")
     vector_cache = VectorCache(cache_db_path)
 
     custom_cmd_manager = CustomCommandManager(db_path.replace(".db", "_commands.db"))

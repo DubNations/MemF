@@ -63,10 +63,10 @@ class PersonalKnowledgeAssistant:
     def _get_reranker(self) -> Optional[Reranker]:
         if self._reranker:
             return self._reranker
-        if self.retrieval_config and self.retrieval_config.reranker_config:
+        if self.retrieval_config and self.retrieval_config.workflow_config and self.retrieval_config.workflow_config.reranker_config:
             return RerankerFactory.create(
-                supplier=self.retrieval_config.reranker_config.supplier,
-                model=self.retrieval_config.reranker_config.model,
+                supplier=self.retrieval_config.workflow_config.reranker_config.supplier,
+                model=self.retrieval_config.workflow_config.reranker_config.model,
             )
         return None
 
@@ -86,10 +86,53 @@ class PersonalKnowledgeAssistant:
         use_rerank: bool = True,
         web_mode: bool = False,
     ) -> AssistantResult:
+        import traceback
+
+        try:
+            return self._handle_query_impl(
+                user_query=user_query,
+                scenario=scenario,
+                knowledge_base_id=knowledge_base_id,
+                session_id=session_id,
+                use_history=use_history,
+                use_rewrite=use_rewrite,
+                use_rerank=use_rerank,
+                web_mode=web_mode,
+            )
+        except Exception as e:
+            tb = traceback.format_exc()
+            print(f"[ERROR] handle_query failed: {e}")
+            print(f"[TRACE] {tb[:500]}")
+            return AssistantResult(
+                answer=f"处理查询时出错: {str(e)}",
+                tool_trace=[],
+                retrieved=[],
+                model=self.llm.model,
+                used_remote_model=False,
+                query_rewrite=None,
+                session_id=session_id or "",
+                rerank_used=False,
+            )
+
+    def _handle_query_impl(
+        self,
+        user_query: str,
+        scenario: str = "general",
+        knowledge_base_id: int | None = None,
+        session_id: Optional[str] = None,
+        use_history: bool = True,
+        use_rewrite: bool = True,
+        use_rerank: bool = True,
+        web_mode: bool = False,
+    ) -> AssistantResult:
         tool_trace: List[Dict[str, Any]] = []
         rewrite_result: Optional[RewriteResult] = None
         rerank_used = False
         command_result: Optional[CommandResult] = None
+
+        # 安全检查：确保 retrieval_config 不为 None
+        if self.retrieval_config is None:
+            self.retrieval_config = RetrievalConfig.default()
 
         slash_command, cleaned_query = self._slash_parser.parse(user_query)
         if slash_command.command_type.value != "custom" or cleaned_query != user_query:
@@ -145,8 +188,8 @@ class PersonalKnowledgeAssistant:
                 "tool": "query_rewrite",
                 "original": actual_query,
                 "rewritten": retrieval_query,
-                "keywords": rewrite_result.keywords,
-                "intent": rewrite_result.intent,
+                "keywords": getattr(rewrite_result, 'keywords', []),
+                "intent": getattr(rewrite_result, 'intent', 'general'),
             })
 
         history_context = ""
@@ -188,7 +231,7 @@ class PersonalKnowledgeAssistant:
             "hits": len(retrieved),
         })
 
-        if use_rerank and self.retrieval_config.reranker_enabled and retrieved:
+        if use_rerank and self.retrieval_config.use_reranker and retrieved:
             reranker = self._get_reranker()
             if reranker:
                 candidates = [{"text": r["text"], "score": r["score"], "metadata": r} for r in retrieved]
@@ -268,10 +311,10 @@ class PersonalKnowledgeAssistant:
             model=llm_resp.model,
             used_remote_model=llm_resp.used_remote,
             query_rewrite={
-                "original": rewrite_result.original_query,
-                "rewritten": rewrite_result.rewritten_query,
-                "keywords": rewrite_result.keywords,
-                "intent": rewrite_result.intent,
+                "original": getattr(rewrite_result, 'original_query', actual_query),
+                "rewritten": getattr(rewrite_result, 'rewritten_query', actual_query),
+                "keywords": getattr(rewrite_result, 'keywords', []),
+                "intent": getattr(rewrite_result, 'intent', 'general'),
             } if rewrite_result else None,
             session_id=session_id,
             rerank_used=rerank_used,
@@ -318,9 +361,9 @@ class PersonalKnowledgeAssistant:
         knowledge_base_id: Optional[int] = None,
     ) -> Dict[str, Any]:
         result = self._pinning_manager.pin_document(
+            session_id=session_id,
             document_id=document_id,
             filename=filename,
-            session_id=session_id,
             knowledge_base_id=knowledge_base_id,
         )
         return result.to_dict()

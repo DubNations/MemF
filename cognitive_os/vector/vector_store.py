@@ -35,6 +35,8 @@ class EmbeddingModel:
 
 class LocalVectorDB:
     def __init__(self, db_path: Path, table: str = "vector_knowledge") -> None:
+        if isinstance(db_path, str):
+            db_path = Path(db_path)
         self.db_path = db_path
         self.table = table
         self.db_path.parent.mkdir(parents=True, exist_ok=True)

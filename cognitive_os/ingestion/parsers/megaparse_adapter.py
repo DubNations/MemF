@@ -38,6 +38,7 @@ class MegaparseAdapter(BaseParser):
         self._megaparse_available = self._check_megaparse()
         self._tesseract_available = self._check_tesseract()
         self._pdfplumber_available = self._check_pdfplumber()
+        self._pypdf_available = self._check_pypdf()
 
     def _check_megaparse(self) -> bool:
         try:
@@ -56,6 +57,13 @@ class MegaparseAdapter(BaseParser):
     def _check_pdfplumber(self) -> bool:
         try:
             import pdfplumber
+            return True
+        except ImportError:
+            return False
+
+    def _check_pypdf(self) -> bool:
+        try:
+            from pypdf import PdfReader
             return True
         except ImportError:
             return False
@@ -187,6 +195,12 @@ class MegaparseAdapter(BaseParser):
             tables.extend(result.get("tables", []))
             pages = result.get("pages", 1)
 
+        if (not text_parts or not "".join(text_parts).strip()) and self._pypdf_available:
+            result = self._parse_with_pypdf(content, filename)
+            if result.get("text"):
+                text_parts.append(result["text"])
+                pages = result.get("pages", pages)
+
         if not text_parts or not "".join(text_parts).strip():
             if self.enable_ocr and self._tesseract_available:
                 ocr_result = self._parse_with_ocr(content, filename)
@@ -248,6 +262,24 @@ class MegaparseAdapter(BaseParser):
                 text_parts.append(text)
 
         return {"text": "\n\n".join(text_parts)}
+
+    def _parse_with_pypdf(self, content: bytes, filename: str) -> Dict[str, Any]:
+        from pypdf import PdfReader
+
+        text_parts = []
+        pages = 0
+
+        try:
+            reader = PdfReader(io.BytesIO(content))
+            pages = len(reader.pages)
+            for page in reader.pages:
+                page_text = page.extract_text() or ""
+                if page_text.strip():
+                    text_parts.append(page_text)
+        except Exception:
+            pass
+
+        return {"text": "\n\n".join(text_parts), "pages": pages}
 
     def _parse_docx_enhanced(self, content: bytes, filename: str) -> ParseResult:
         text_parts: List[str] = []

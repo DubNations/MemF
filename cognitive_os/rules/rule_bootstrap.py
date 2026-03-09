@@ -111,7 +111,12 @@ def bootstrap_rules_from_web(domain: str, max_rules: int = 12, timeout_sec: int 
         if len(collected) >= max_rules:
             break
         try:
-            req = urllib.request.Request(url, headers={"User-Agent": "Mozilla/5.0"})
+            req = urllib.request.Request(url, headers={
+                "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
+                "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+                "Accept-Language": "en-US,en;q=0.5",
+                "Connection": "close",
+            })
             with urllib.request.urlopen(req, timeout=timeout_sec) as resp:
                 raw = resp.read().decode("utf-8", errors="ignore")
             cleaned = _clean_html(raw)
@@ -129,8 +134,8 @@ def bootstrap_rules_from_web(domain: str, max_rules: int = 12, timeout_sec: int 
                 if len(collected) >= max_rules:
                     break
             fetched_urls.append(url)
-        except (urllib.error.URLError, TimeoutError, ValueError) as exc:
-            errors.append(f"{url}: {exc}")
+        except (urllib.error.URLError, TimeoutError, ValueError, Exception) as exc:
+            errors.append(f"{url}: {str(exc)[:100]}")
 
     if not collected:
         collected = _fallback_templates(domain)[:max_rules]

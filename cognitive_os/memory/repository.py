@@ -18,6 +18,8 @@ class MemoryPlane:
     db_path: Path
 
     def __post_init__(self) -> None:
+        if isinstance(self.db_path, str):
+            self.db_path = Path(self.db_path)
         self.db_path.parent.mkdir(parents=True, exist_ok=True)
         self._init_schema()
 
